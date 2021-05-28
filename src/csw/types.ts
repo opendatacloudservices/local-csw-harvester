@@ -105,10 +105,16 @@ export type CswRawTransferOption = {
         'gmd:linkage': {
           'gmd:URL': string;
         }[];
+        'gmd:protocol': {
+          'gco:CharacterString': string;
+        }[];
         'gmd:applicationProfile': {
           'gco:CharacterString': string;
         }[];
         'gmd:name': {
+          'gco:CharacterString': string;
+        }[];
+        'gmd:description': {
           'gco:CharacterString': string;
         }[];
         'gmd:function': {
@@ -332,7 +338,9 @@ export type CswResource = {
   url?: CswValue;
   applicationProfile?: CswValue;
   name?: CswValue;
+  description?: CswValue;
   function?: CswValue;
+  protocol?: CswValue;
 };
 
 export type CswContact = {

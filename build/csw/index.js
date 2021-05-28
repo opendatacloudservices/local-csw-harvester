@@ -37,7 +37,6 @@ const getRecords = (cswSource) => {
                 'gmd:MD_Distribution',
                 'gmd:transferOptions',
             ]);
-            console.log(searchResource.length);
             if (searchResource) {
                 resources = searchResource.map(resource => {
                     if (!resource) {
@@ -74,6 +73,13 @@ const getRecords = (cswSource) => {
                                 'gmd:name',
                                 'gco:CharacterString',
                             ])),
+                            description: get_1.onlySimple(get_1.traverse(resource, [
+                                'gmd:MD_DigitalTransferOptions',
+                                'gmd:onLine',
+                                'gmd:CI_OnlineResource',
+                                'gmd:description',
+                                'gco:CharacterString',
+                            ])),
                             function: get_1.onlySimple(get_1.traverse(resource, [
                                 'gmd:MD_DigitalTransferOptions',
                                 'gmd:onLine',
@@ -81,6 +87,13 @@ const getRecords = (cswSource) => {
                                 'gmd:function',
                                 'gmd:CI_OnLineFunctionCode',
                                 '#text',
+                            ])),
+                            protocol: get_1.onlySimple(get_1.traverse(resource, [
+                                'gmd:MD_DigitalTransferOptions',
+                                'gmd:onLine',
+                                'gmd:CI_OnlineResource',
+                                'gmd:protocol',
+                                'gco:CharacterString',
                             ])),
                         };
                     }
@@ -383,7 +396,6 @@ const getRecords = (cswSource) => {
                 category: get_1.traverse(record, [
                     'gmd:identificationInfo',
                     'gmd:MD_DataIdentification',
-                    'gmd:citation',
                     'gmd:topicCategory',
                     'gmd:MD_TopicCategoryCode',
                 ]),
@@ -392,7 +404,6 @@ const getRecords = (cswSource) => {
                     'gmd:MD_DataIdentification',
                     'gmd:citation',
                     'gmd:spatialResolution',
-                    'gmd:MD_TopicCategoryCode',
                     'gmd:MD_Resolution',
                     'gmd:equivalentScale',
                     'gmd:MD_RepresentativeFraction',

@@ -81,7 +81,6 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
           'gmd:MD_Distribution',
           'gmd:transferOptions',
         ]);
-        console.log(searchResource.length);
         if (searchResource) {
           resources = searchResource.map(resource => {
             if (!resource) {
@@ -125,6 +124,15 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
                     'gco:CharacterString',
                   ])
                 ),
+                description: onlySimple(
+                  traverse(resource, [
+                    'gmd:MD_DigitalTransferOptions',
+                    'gmd:onLine',
+                    'gmd:CI_OnlineResource',
+                    'gmd:description',
+                    'gco:CharacterString',
+                  ])
+                ),
                 function: onlySimple(
                   traverse(resource, [
                     'gmd:MD_DigitalTransferOptions',
@@ -133,6 +141,15 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
                     'gmd:function',
                     'gmd:CI_OnLineFunctionCode',
                     '#text',
+                  ])
+                ),
+                protocol: onlySimple(
+                  traverse(resource, [
+                    'gmd:MD_DigitalTransferOptions',
+                    'gmd:onLine',
+                    'gmd:CI_OnlineResource',
+                    'gmd:protocol',
+                    'gco:CharacterString',
                   ])
                 ),
               };
@@ -442,7 +459,6 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
           category: traverse(record, [
             'gmd:identificationInfo',
             'gmd:MD_DataIdentification',
-            'gmd:citation',
             'gmd:topicCategory',
             'gmd:MD_TopicCategoryCode',
           ]),
@@ -451,7 +467,6 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
             'gmd:MD_DataIdentification',
             'gmd:citation',
             'gmd:spatialResolution',
-            'gmd:MD_TopicCategoryCode',
             'gmd:MD_Resolution',
             'gmd:equivalentScale',
             'gmd:MD_RepresentativeFraction',
