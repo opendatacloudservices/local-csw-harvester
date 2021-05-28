@@ -104,7 +104,7 @@ export function get<
     >[P6]
   | undefined;
 
-  export function get<
+export function get<
   T,
   P1 extends keyof NonNullable<T>,
   P2 extends keyof NonNullable<NonNullable<T>[P1]>,
@@ -146,6 +146,7 @@ export function get<
     >[P7]
   | undefined;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function get(obj: any, ...props: string[]): any {
   return (
     obj &&
@@ -154,4 +155,53 @@ export function get(obj: any, ...props: string[]): any {
       obj
     )
   );
+}
+
+export const clearNulls = (
+  array: (null | string | number | object)[]
+): (string | number | object)[] => {
+  const returnArray: (string | number | object)[] = [];
+  array.forEach(el => {
+    if (el !== null) {
+      returnArray.push(el);
+    }
+  });
+  return returnArray;
+};
+
+export const onlySimple = (
+  array: (string | number | boolean | object | null)[]
+): (string | number | boolean | null)[] => {
+  const returnArray: (string | number | boolean | null)[] = [];
+  array.forEach(el => {
+    if (typeof el !== 'object') {
+      returnArray.push(el);
+    }
+  });
+  return returnArray;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const traverse = (obj: any, path: string[], clearNull = true): any => {
+  let tObj = obj;
+  if (typeof tObj === 'object' && path[0] in tObj) {
+    tObj = tObj[path[0]];
+    if (path.length > 1 && Array.isArray(tObj)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results: any[] = [];
+      tObj.forEach(sub => {
+        results.push(traverse(sub, path.slice(1), clearNull));
+      });
+      if (clearNull) {
+        return clearNulls(results.flat());
+      }
+      return results.flat();
+    } else if (path.length > 1) {
+      return traverse(tObj, path.slice(1), clearNull);
+    } else {
+      return tObj;
+    }
+  } else {
+    return null;
+  }
 };
