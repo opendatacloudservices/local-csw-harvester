@@ -25,7 +25,8 @@ export type CswRawRecord = {
     'gco:Date': string;
   }[];
   'gmd:identificationInfo': {
-    'gmd:MD_DataIdentification': {
+    // ('gmd:MD_DataIdentification' | 'srv:SV_ServiceIdentification')
+    [key: string]: {
       'gmd:citation': {
         'gmd:title': {
           'gco:CharacterString': string;
@@ -290,9 +291,10 @@ export type CswSource = {
 };
 
 type CswValue = (string | number | boolean | null)[] | null;
+type CswSingleValue = string | number | boolean | null;
 
 export type CswRecord = {
-  id?: string;
+  id?: CswSingleValue;
   languageCode?: CswValue;
   parentIdentifier?: CswValue;
   hierarchyLevel?: CswValue;
@@ -301,7 +303,9 @@ export type CswRecord = {
   abstract?: CswValue;
   resources?: CswResource[];
   srid?: CswValue;
+  purpose?: CswValue;
   title?: CswValue;
+  edition?: CswSingleValue;
   alternateTitle?: CswValue;
   organisations?: CswContact[];
   dates?: CswDate[];
@@ -316,6 +320,7 @@ export type CswRecord = {
     endUndetermined?: CswValue;
   };
   spatialExtent?: {
+    description: CswValue;
     longitude: CswValue;
     latitude: CswValue;
   };
@@ -323,8 +328,8 @@ export type CswRecord = {
 };
 
 export type CswDate = {
-  date?: CswValue;
-  type?: CswValue;
+  date?: CswSingleValue;
+  type?: CswSingleValue;
 };
 
 export type CswKeyword = {
@@ -346,6 +351,7 @@ export type CswResource = {
 export type CswContact = {
   type?: CswValue;
   name?: CswValue;
+  individualName?: CswValue;
   position?: CswValue;
   phone?: CswValue;
   fax?: CswValue;

@@ -22,7 +22,7 @@ export declare type CswRawRecord = {
         'gco:Date': string;
     }[];
     'gmd:identificationInfo': {
-        'gmd:MD_DataIdentification': {
+        [key: string]: {
             'gmd:citation': {
                 'gmd:title': {
                     'gco:CharacterString': string;
@@ -273,8 +273,9 @@ export declare type CswSource = {
     version: string;
 };
 declare type CswValue = (string | number | boolean | null)[] | null;
+declare type CswSingleValue = string | number | boolean | null;
 export declare type CswRecord = {
-    id?: string;
+    id?: CswSingleValue;
     languageCode?: CswValue;
     parentIdentifier?: CswValue;
     hierarchyLevel?: CswValue;
@@ -283,7 +284,9 @@ export declare type CswRecord = {
     abstract?: CswValue;
     resources?: CswResource[];
     srid?: CswValue;
+    purpose?: CswValue;
     title?: CswValue;
+    edition?: CswSingleValue;
     alternateTitle?: CswValue;
     organisations?: CswContact[];
     dates?: CswDate[];
@@ -298,14 +301,15 @@ export declare type CswRecord = {
         endUndetermined?: CswValue;
     };
     spatialExtent?: {
+        description: CswValue;
         longitude: CswValue;
         latitude: CswValue;
     };
     keywords: CswKeyword[];
 };
 export declare type CswDate = {
-    date?: CswValue;
-    type?: CswValue;
+    date?: CswSingleValue;
+    type?: CswSingleValue;
 };
 export declare type CswKeyword = {
     name?: CswValue;
@@ -324,6 +328,7 @@ export declare type CswResource = {
 export declare type CswContact = {
     type?: CswValue;
     name?: CswValue;
+    individualName?: CswValue;
     position?: CswValue;
     phone?: CswValue;
     fax?: CswValue;

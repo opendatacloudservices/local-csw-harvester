@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import * as parser from 'fast-xml-parser';
-import {traverse, onlySimple} from './get';
+import {traverse, onlySimple, getFirst} from './get';
 import {writeFileSync} from 'fs';
 import {
   CswContact,
@@ -23,7 +23,7 @@ const getRecordsQuery = (
   start: number,
   max: number
 ): string => {
-  return `${cswSource.url}?REQUEST=GetRecords&SERVICE=CSW&VERSION=${cswSource.version}&RESULTTYPE=results&MAXRECORDS=${max}&typeNames=csw:Records&elementSetName=full&startPosition=${start}`;
+  return `${cswSource.url}?REQUEST=GetRecords&SERVICE=CSW&VERSION=${cswSource.version}&RESULTTYPE=results&MAXRECORDS=${max}&typeNames=csw:Record&elementSetName=full&startPosition=${start}&outputSchema=http://www.isotc211.org/2005/gmd`;
 };
 
 export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
@@ -33,12 +33,12 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
     .then(resultText => {
       const json = parser.parse(
         resultText,
-        {ignoreAttributes: false, arrayMode: true},
+        {ignoreAttributes: false, arrayMode: true, ignoreNameSpace: true},
         false
       );
 
       const max =
-        json['csw:GetRecordsResponse'][0]['csw:SearchResults'][0][
+        json['GetRecordsResponse'][0]['SearchResults'][0][
           '@_numberOfRecordsMatched'
         ];
 
@@ -52,7 +52,11 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
             .then(resultText =>
               parser.parse(
                 resultText,
-                {ignoreAttributes: false, arrayMode: true},
+                {
+                  ignoreAttributes: false,
+                  arrayMode: true,
+                  ignoreNameSpace: true,
+                },
                 false
               )
             )
@@ -65,9 +69,7 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
       let searchResults: CswRawRecord[] = [];
       results.forEach(r => {
         searchResults = searchResults.concat(
-          r['csw:GetRecordsResponse'][0]['csw:SearchResults'][0][
-            'gmd:MD_Metadata'
-          ]
+          r['GetRecordsResponse'][0]['SearchResults'][0]['MD_Metadata']
         );
       });
 
@@ -77,9 +79,9 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
 
         let resources: CswResource[] = [];
         const searchResource: CswRawTransferOption[] = traverse(record, [
-          'gmd:distributionInfo',
-          'gmd:MD_Distribution',
-          'gmd:transferOptions',
+          'distributionInfo',
+          'MD_Distribution',
+          'transferOptions',
         ]);
         if (searchResource) {
           resources = searchResource.map(resource => {
@@ -87,70 +89,107 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
               return {};
             } else {
               return {
-                distributionFormat: onlySimple(
-                  traverse(record, [
-                    'gmd:distributionInfo',
-                    'gmd:MD_Distribution',
-                    'gmd:distributionFormat',
-                    'gmd:MD_Format',
-                    'gmd:name',
-                    'gco:CharacterString',
-                  ])
-                ),
+                distributionFormat:
+                  onlySimple(
+                    traverse(record, [
+                      'distributionInfo',
+                      'MD_Distribution',
+                      'distributionFormat',
+                      'MD_Format',
+                      'name',
+                      'CharacterString',
+                    ])
+                  ) ||
+                  onlySimple(
+                    traverse(record, [
+                      'distributionInfo',
+                      'MD_Distribution',
+                      'distributor',
+                      'MD_Distributor',
+                      'distributorFormat',
+                      'MD_Format',
+                      'name',
+                      'CharacterString',
+                    ])
+                  ),
                 url: onlySimple(
-                  traverse(resource, [
-                    'gmd:MD_DigitalTransferOptions',
-                    'gmd:onLine',
-                    'gmd:CI_OnlineResource',
-                    'gmd:linkage',
-                    'gmd:URL',
-                  ])
+                  traverse(
+                    resource,
+                    [
+                      'MD_DigitalTransferOptions',
+                      'onLine',
+                      'CI_OnlineResource',
+                      'linkage',
+                      'URL',
+                    ],
+                    false
+                  )
                 ),
                 applicationProfile: onlySimple(
-                  traverse(resource, [
-                    'gmd:MD_DigitalTransferOptions',
-                    'gmd:onLine',
-                    'gmd:CI_OnlineResource',
-                    'gmd:applicationProfile',
-                    'gco:CharacterString',
-                  ])
+                  traverse(
+                    resource,
+                    [
+                      'MD_DigitalTransferOptions',
+                      'onLine',
+                      'CI_OnlineResource',
+                      'applicationProfile',
+                      'CharacterString',
+                    ],
+                    false
+                  )
                 ),
                 name: onlySimple(
-                  traverse(resource, [
-                    'gmd:MD_DigitalTransferOptions',
-                    'gmd:onLine',
-                    'gmd:CI_OnlineResource',
-                    'gmd:name',
-                    'gco:CharacterString',
-                  ])
+                  traverse(
+                    resource,
+                    [
+                      'MD_DigitalTransferOptions',
+                      'onLine',
+                      'CI_OnlineResource',
+                      'name',
+                      'CharacterString',
+                    ],
+                    false
+                  )
                 ),
                 description: onlySimple(
-                  traverse(resource, [
-                    'gmd:MD_DigitalTransferOptions',
-                    'gmd:onLine',
-                    'gmd:CI_OnlineResource',
-                    'gmd:description',
-                    'gco:CharacterString',
-                  ])
+                  traverse(
+                    resource,
+                    [
+                      'MD_DigitalTransferOptions',
+                      'onLine',
+                      'CI_OnlineResource',
+                      'description',
+                      'CharacterString',
+                    ],
+                    false
+                  )
                 ),
                 function: onlySimple(
-                  traverse(resource, [
-                    'gmd:MD_DigitalTransferOptions',
-                    'gmd:onLine',
-                    'gmd:CI_OnlineResource',
-                    'gmd:function',
-                    'gmd:CI_OnLineFunctionCode',
-                    '#text',
-                  ])
+                  traverse(
+                    resource,
+                    [
+                      'MD_DigitalTransferOptions',
+                      'onLine',
+                      'CI_OnlineResource',
+                      'function',
+                      'CI_OnLineFunctionCode',
+                      ['#text', '@_codeListValue'],
+                    ],
+                    false
+                  )
                 ),
                 protocol: onlySimple(
-                  traverse(resource, [
-                    'gmd:MD_DigitalTransferOptions',
-                    'gmd:onLine',
-                    'gmd:CI_OnlineResource',
-                    'gmd:protocol',
-                    'gco:CharacterString',
-                  ])
+                  traverse(
+                    resource,
+                    [
+                      'MD_DigitalTransferOptions',
+                      'onLine',
+                      'CI_OnlineResource',
+                      'protocol',
+                      'CharacterString',
+                    ],
+                    false
+                  )
                 ),
               };
             }
@@ -159,11 +198,11 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
 
         let dates: CswDate[] = [];
         const searchDates: CswRawDate[] = traverse(record, [
-          'gmd:identificationInfo',
-          'gmd:MD_DataIdentification',
-          'gmd:citation',
-          'gmd:CI_Citation',
-          'gmd:date',
+          'identificationInfo',
+          ['MD_DataIdentification', 'SV_ServiceIdentification'],
+          'citation',
+          'CI_Citation',
+          'date',
         ]);
         if (searchDates) {
           dates = searchDates.map(date => {
@@ -171,17 +210,17 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
               return {};
             } else {
               return {
-                date: traverse(date, [
-                  'gmd:CI_Date',
-                  'gmd:date',
-                  'gco:DateTime',
-                ]).flat()[0],
-                type: traverse(date, [
-                  'gmd:CI_Date',
-                  'gmd:dateType',
-                  'gmd:CI_DateTypeCode',
-                  '@_codeListValue',
-                ]).flat()[0],
+                date: getFirst(
+                  traverse(date, ['CI_Date', 'date', ['DateTime', 'Date']])
+                ),
+                type: getFirst(
+                  traverse(date, [
+                    'CI_Date',
+                    'dateType',
+                    ['CI_DateTypeCode', 'CI_DateTypeCode'],
+                    '@_codeListValue',
+                  ])
+                ),
               };
             }
           });
@@ -189,73 +228,83 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
 
         let constraints: CswConstraint[] = [];
         const searchConstraints: CswRawConstraint[] = traverse(record, [
-          'gmd:identificationInfo',
-          'gmd:MD_DataIdentification',
-          'gmd:resourceConstraints',
+          'identificationInfo',
+          ['MD_DataIdentification', 'SV_ServiceIdentification'],
+          'resourceConstraints',
         ]);
         if (searchConstraints) {
-          constraints = searchConstraints.map(constraint => {
-            if (!constraint) {
-              return {};
-            } else {
-              const useLimitation = traverse(constraint, [
-                'gmd:MD_LegalConstraints',
-                'gmd:useLimitation',
-                'gco:CharacterString',
-              ])[0];
-              const useConstraint = traverse(constraint, [
-                'gmd:MD_LegalConstraints',
-                'gmd:useConstraints',
-                'gmd:MD_RestrictionCode',
-                '@_codeListValue',
-              ])[0];
-              let otherConstraint = traverse(constraint, [
-                'gmd:MD_LegalConstraints',
-                'gmd:otherConstraints',
-                'gmx:Anchor',
-                '#text',
-              ])[0];
-              if (!otherConstraint) {
-                otherConstraint = traverse(constraint, [
-                  'gmd:MD_LegalConstraints',
-                  'gmd:otherConstraints',
-                  'gco:CharacterString',
-                ])[0];
+          constraints = searchConstraints
+            .map(constraint => {
+              if (!constraint) {
+                return [{}];
+              } else {
+                const returnConstraints: CswConstraint[] = [];
+                const useLimitation = traverse(constraint, [
+                  ['MD_LegalConstraints', 'MD_Constraints'],
+                  'useLimitation',
+                  'CharacterString',
+                ]);
+                const useConstraint = traverse(constraint, [
+                  ['MD_LegalConstraints', 'MD_Constraints'],
+                  'useConstraints',
+                  'MD_RestrictionCode',
+                  '@_codeListValue',
+                ]);
+                let otherConstraint = traverse(constraint, [
+                  ['MD_LegalConstraints', 'MD_Constraints'],
+                  'otherConstraints',
+                  'gmx:Anchor',
+                ]);
+                if (!otherConstraint || otherConstraint.length === 0) {
+                  otherConstraint = traverse(constraint, [
+                    ['MD_LegalConstraints', 'MD_Constraints'],
+                    'otherConstraints',
+                    'CharacterString',
+                  ]);
+                }
+                const accessConstraint = traverse(constraint, [
+                  ['MD_LegalConstraints', 'MD_Constraints'],
+                  'accessConstraints',
+                  'gmx:MD_RestrictionCode',
+                  ['#text', '@_codeListValue'],
+                ]);
+                if (useConstraint && useConstraint.length !== 0) {
+                  returnConstraints.push({
+                    type: 'useConstraint',
+                    value: useConstraint,
+                  });
+                }
+                if (useLimitation && useLimitation.length !== 0) {
+                  returnConstraints.push({
+                    type: 'useLimitation',
+                    value: useLimitation,
+                  });
+                }
+                if (otherConstraint && otherConstraint.length !== 0) {
+                  returnConstraints.push({
+                    type: 'otherConstraint',
+                    value: otherConstraint,
+                  });
+                }
+                if (accessConstraint && accessConstraint.length !== 0) {
+                  returnConstraints.push({
+                    type: 'accessConstraint',
+                    value: accessConstraint,
+                  });
+                }
+
+                return returnConstraints;
               }
-              const accessConstraint = traverse(constraint, [
-                'gmd:MD_LegalConstraints',
-                'gmd:accessConstraints',
-                'gmx:MD_RestrictionCode',
-                '#text',
-              ])[0];
-              let type = '';
-              const value: string[] = [];
-              if (useConstraint) {
-                type = 'useConstraint';
-                value.push(useConstraint);
-              } else if (useLimitation) {
-                type = 'useLimitation';
-                value.push(useLimitation);
-              } else if (otherConstraint) {
-                type = 'otherConstraint';
-                value.push(otherConstraint);
-              } else if (accessConstraint) {
-                type = 'accessConstraint';
-                value.push(accessConstraint);
-              }
-              return {
-                type,
-                value,
-              };
-            }
-          });
+            })
+            .flat()
+            .filter(c => Object.keys(c).length > 0);
         }
 
         let keywords: CswKeyword[] = [];
         const searchKeywords: CswRawKeyword[] = traverse(record, [
-          'gmd:identificationInfo',
-          'gmd:MD_DataIdentification',
-          'gmd:descriptiveKeywords',
+          'identificationInfo',
+          ['MD_DataIdentification', 'SV_ServiceIdentification'],
+          'descriptiveKeywords',
         ]);
         if (searchKeywords) {
           keywords = searchKeywords.map(keyword => {
@@ -265,20 +314,20 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
               return {
                 name: traverse(
                   keyword,
-                  ['gmd:MD_Keywords', 'gmd:keyword', 'gco:CharacterString'],
+                  ['MD_Keywords', 'keyword', 'CharacterString'],
                   false
-                ).flat(),
+                ),
                 type: traverse(keyword, [
-                  'gmd:MD_Keywords',
-                  'gmd:type',
-                  'gmd:MD_KeywordTypeCode',
+                  'MD_Keywords',
+                  'type',
+                  'MD_KeywordTypeCode',
                   '@_codeListValue',
-                ]).flat(),
+                ]),
                 anchor: traverse(
                   keyword,
-                  ['gmd:MD_Keywords', 'gmd:keyword', 'gmx:Anchor', '#text'],
+                  ['MD_Keywords', 'keyword', 'gmx:Anchor'],
                   false
-                ).flat(),
+                ),
               };
             }
           });
@@ -286,110 +335,115 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
 
         let organisations: CswContact[] = [];
         const searchOrganisations: CswRawContact[] = traverse(record, [
-          'gmd:identificationInfo',
-          'gmd:MD_DataIdentification',
-          'gmd:pointOfContact',
+          'identificationInfo',
+          ['MD_DataIdentification', 'SV_ServiceIdentification'],
+          'pointOfContact',
         ]);
         if (searchOrganisations) {
           organisations = searchOrganisations.map(organisation => {
             if (organisation) {
               return {
                 type: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:role',
-                  'gmd:CI_RoleCode',
+                  'CI_ResponsibleParty',
+                  'role',
+                  'CI_RoleCode',
                   '@_codeListValue',
                 ]),
                 name: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:organisationName',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'organisationName',
+                  'CharacterString',
+                ]),
+                individualName: traverse(organisation, [
+                  'CI_ResponsibleParty',
+                  'individualName',
+                  'CharacterString',
                 ]),
                 position: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:positionName',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'positionName',
+                  'CharacterString',
                 ]),
                 phone: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:phone',
-                  'gmd:CI_Telephone',
-                  'gmd:voice',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'phone',
+                  'CI_Telephone',
+                  'voice',
+                  'CharacterString',
                 ]),
                 fax: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:phone',
-                  'gmd:CI_Telephone',
-                  'gmd:facsimile',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'phone',
+                  'CI_Telephone',
+                  'facsimile',
+                  'CharacterString',
                 ]),
                 url: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:onlineResource',
-                  'gmd:CI_OnlineResource',
-                  'gmd:linkage',
-                  'gmd:URL',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'onlineResource',
+                  'CI_OnlineResource',
+                  'linkage',
+                  'URL',
                 ]),
                 email: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:address',
-                  'gmd:CI_Address',
-                  'gmd:electronicMailAddress',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'address',
+                  'CI_Address',
+                  'electronicMailAddress',
+                  'CharacterString',
                 ]),
                 deliveryPoint: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:address',
-                  'gmd:CI_Address',
-                  'gmd:deliveryPoint',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'address',
+                  'CI_Address',
+                  'deliveryPoint',
+                  'CharacterString',
                 ]),
                 city: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:address',
-                  'gmd:CI_Address',
-                  'gmd:city',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'address',
+                  'CI_Address',
+                  'city',
+                  'CharacterString',
                 ]),
                 adminArea: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:address',
-                  'gmd:CI_Address',
-                  'gmd:administrativeArea',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'address',
+                  'CI_Address',
+                  'administrativeArea',
+                  'CharacterString',
                 ]),
                 postcode: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:address',
-                  'gmd:CI_Address',
-                  'gmd:postalCode',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'address',
+                  'CI_Address',
+                  'postalCode',
+                  'CharacterString',
                 ]),
                 country: traverse(organisation, [
-                  'gmd:CI_ResponsibleParty',
-                  'gmd:contactInfo',
-                  'gmd:CI_Contact',
-                  'gmd:address',
-                  'gmd:CI_Address',
-                  'gmd:country',
-                  'gco:CharacterString',
+                  'CI_ResponsibleParty',
+                  'contactInfo',
+                  'CI_Contact',
+                  'address',
+                  'CI_Address',
+                  'country',
+                  'CharacterString',
                 ]),
               };
             } else {
@@ -399,128 +453,146 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
         }
 
         cswRecords.push({
-          id: traverse(record, [
-            'gmd:fileIdentifier',
-            'gco:CharacterString',
-          ])[0],
-          languageCode: traverse(record, [
-            'gmd:language',
-            'gmd:LanguageCode',
-            '#text',
-          ]),
+          id: getFirst(
+            onlySimple(traverse(record, ['fileIdentifier', 'CharacterString']))
+          ),
+          languageCode:
+            traverse(record, [
+              'language',
+              ['#text', '@_codeListValue', 'CharacterString'],
+            ]) ||
+            traverse(record, [
+              'language',
+              'LanguageCode',
+              ['#text', '@_codeListValue'],
+            ]),
           parentIdentifier: traverse(record, [
-            'gmd:parentIdentifier',
-            'gco:CharacterString',
+            'parentIdentifier',
+            'CharacterString',
           ]),
           hierarchyLevel: traverse(record, [
-            'gmd:hierarchyLevel',
-            'gmd:MD_ScopeCode',
-            '#text',
+            'hierarchyLevel',
+            'MD_ScopeCode',
+            ['#text', '@_codeListValue'],
           ]),
           hierarchyLevelName: traverse(record, [
-            'gmd:hierarchyLevelName',
-            'gco:CharacterString',
+            'hierarchyLevelName',
+            'CharacterString',
           ]),
-          dateStamp: traverse(record, ['gmd:dateStamp', 'gco:Date']),
+          dateStamp: traverse(record, ['dateStamp', ['Date', 'DateTime']]),
+          edition: getFirst(
+            traverse(record, [
+              'identificationInfo',
+              ['MD_DataIdentification', 'SV_ServiceIdentification'],
+              'citation',
+              'CI_Citation',
+              'edition',
+              'CharacterString',
+            ])
+          ),
           abstract: traverse(record, [
-            'gmd:identificationInfo',
-            'gmd:MD_DataIdentification',
-            'gmd:abstract',
-            'gco:CharacterString',
+            'identificationInfo',
+            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+            'abstract',
+            'CharacterString',
           ]),
           resources,
           srid: traverse(record, [
-            'gmd:referenceSystemInfo',
-            'gmd:MD_ReferenceSystem',
-            'gmd:referenceSystemIdentifier',
-            'gmd:RS_Identifier',
-            'gmd:code',
-            'gmx:Anchor',
-            '#text',
+            'referenceSystemInfo',
+            'MD_ReferenceSystem',
+            'referenceSystemIdentifier',
+            'RS_Identifier',
+            'code',
+            ['gmx:Anchor', 'CharacterString'],
+          ]),
+          purpose: traverse(record, [
+            'identificationInfo',
+            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+            'purpose',
+            'CharacterString',
           ]),
           title: traverse(record, [
-            'gmd:identificationInfo',
-            'gmd:MD_DataIdentification',
-            'gmd:citation',
-            'gmd:CI_Citation',
-            'gmd:title',
-            'gco:CharacterString',
+            'identificationInfo',
+            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+            'citation',
+            'CI_Citation',
+            'title',
+            'CharacterString',
           ]),
           alternateTitle: traverse(record, [
-            'gmd:identificationInfo',
-            'gmd:MD_DataIdentification',
-            'gmd:citation',
-            'gmd:CI_Citation',
-            'gmd:alternateTitle',
-            'gco:CharacterString',
+            'identificationInfo',
+            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+            'citation',
+            'CI_Citation',
+            'alternateTitle',
+            'CharacterString',
           ]),
           organisations,
           dates,
           category: traverse(record, [
-            'gmd:identificationInfo',
-            'gmd:MD_DataIdentification',
-            'gmd:topicCategory',
-            'gmd:MD_TopicCategoryCode',
+            'identificationInfo',
+            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+            'topicCategory',
+            'MD_TopicCategoryCode',
           ]),
           spatialResolution: traverse(record, [
-            'gmd:identificationInfo',
-            'gmd:MD_DataIdentification',
-            'gmd:citation',
-            'gmd:spatialResolution',
-            'gmd:MD_Resolution',
-            'gmd:equivalentScale',
-            'gmd:MD_RepresentativeFraction',
-            'gmd:denominator',
-            'gco:Integer',
+            'identificationInfo',
+            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+            'spatialResolution',
+            'MD_Resolution',
+            'equivalentScale',
+            'MD_RepresentativeFraction',
+            'denominator',
+            'Integer',
           ]),
           geographicDescription: traverse(record, [
-            'gmd:identificationInfo',
-            'gmd:MD_DataIdentification',
-            'gmd:extent',
-            'gmd:EX_Extent',
-            'gmd:geographicElement',
-            'gmd:EX_GeographicDescription',
-            'gmd:geographicIdentifier',
-            'gmd:MD_Identifier',
-            'gmd:code',
-            'gco:CharacterString',
+            'identificationInfo',
+            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+            'extent',
+            'EX_Extent',
+            'geographicElement',
+            'EX_GeographicDescription',
+            'geographicIdentifier',
+            'MD_Identifier',
+            'code',
+            'CharacterString',
           ]),
           temporalExtent: {
             start: onlySimple(
               traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:extent',
-                'gmd:EX_Extent',
-                'gmd:temporalElement',
-                'gmd:EX_TemporalExtent',
-                'gmd:extent',
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'extent',
+                'EX_Extent',
+                'temporalElement',
+                'EX_TemporalExtent',
+                'extent',
                 'gml:TimePeriod',
                 'gml:beginPosition',
               ])
             ),
             end: onlySimple(
               traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:extent',
-                'gmd:EX_Extent',
-                'gmd:temporalElement',
-                'gmd:EX_TemporalExtent',
-                'gmd:extent',
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'extent',
+                'EX_Extent',
+                'temporalElement',
+                'EX_TemporalExtent',
+                'extent',
                 'gml:TimePeriod',
                 'gml:endPosition',
               ])
             ),
             startUndetermined: onlySimple(
               traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:extent',
-                'gmd:EX_Extent',
-                'gmd:temporalElement',
-                'gmd:EX_TemporalExtent',
-                'gmd:extent',
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'extent',
+                'EX_Extent',
+                'temporalElement',
+                'EX_TemporalExtent',
+                'extent',
                 'gml:TimePeriod',
                 'gml:beginPosition',
                 '@_indeterminatePosition',
@@ -528,13 +600,13 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
             ),
             endUndetermined: onlySimple(
               traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:extent',
-                'gmd:EX_Extent',
-                'gmd:temporalElement',
-                'gmd:EX_TemporalExtent',
-                'gmd:extent',
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'extent',
+                'EX_Extent',
+                'temporalElement',
+                'EX_TemporalExtent',
+                'extent',
                 'gml:TimePeriod',
                 'gml:endPosition',
                 '@_indeterminatePosition',
@@ -542,49 +614,65 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
             ),
           },
           spatialExtent: {
+            description: traverse(record, [
+              'identificationInfo',
+              ['MD_DataIdentification', 'SV_ServiceIdentification'],
+              'extent',
+              'EX_Extent',
+              'description',
+              'CharacterString',
+            ]),
             longitude: [
-              traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:extent',
-                'gmd:EX_Extent',
-                'gmd:geographicElement',
-                'gmd:EX_GeographicBoundingBox',
-                'gmd:westBoundLongitude',
-                'gco:Decimal',
-              ])[0],
-              traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:extent',
-                'gmd:EX_Extent',
-                'gmd:geographicElement',
-                'gmd:EX_GeographicBoundingBox',
-                'gmd:eastBoundLongitude',
-                'gco:Decimal',
-              ])[0],
+              getFirst(
+                traverse(record, [
+                  'identificationInfo',
+                  ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                  'extent',
+                  'EX_Extent',
+                  'geographicElement',
+                  'EX_GeographicBoundingBox',
+                  'westBoundLongitude',
+                  'Decimal',
+                ])
+              ),
+              getFirst(
+                traverse(record, [
+                  'identificationInfo',
+                  ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                  'extent',
+                  'EX_Extent',
+                  'geographicElement',
+                  'EX_GeographicBoundingBox',
+                  'eastBoundLongitude',
+                  'Decimal',
+                ])
+              ),
             ],
             latitude: [
-              traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:extent',
-                'gmd:EX_Extent',
-                'gmd:geographicElement',
-                'gmd:EX_GeographicBoundingBox',
-                'gmd:southBoundLatitude',
-                'gco:Decimal',
-              ])[0],
-              traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:extent',
-                'gmd:EX_Extent',
-                'gmd:geographicElement',
-                'gmd:EX_GeographicBoundingBox',
-                'gmd:northBoundLatitude',
-                'gco:Decimal',
-              ])[0],
+              getFirst(
+                traverse(record, [
+                  'identificationInfo',
+                  ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                  'extent',
+                  'EX_Extent',
+                  'geographicElement',
+                  'EX_GeographicBoundingBox',
+                  'southBoundLatitude',
+                  'Decimal',
+                ])
+              ),
+              getFirst(
+                traverse(record, [
+                  'identificationInfo',
+                  ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                  'extent',
+                  'EX_Extent',
+                  'geographicElement',
+                  'EX_GeographicBoundingBox',
+                  'northBoundLatitude',
+                  'Decimal',
+                ])
+              ),
             ],
           },
           keywords,

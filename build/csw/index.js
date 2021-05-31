@@ -6,36 +6,40 @@ const parser = require("fast-xml-parser");
 const get_1 = require("./get");
 const fs_1 = require("fs");
 const getRecordsQuery = (cswSource, start, max) => {
-    return `${cswSource.url}?REQUEST=GetRecords&SERVICE=CSW&VERSION=${cswSource.version}&RESULTTYPE=results&MAXRECORDS=${max}&typeNames=csw:Records&elementSetName=full&startPosition=${start}`;
+    return `${cswSource.url}?REQUEST=GetRecords&SERVICE=CSW&VERSION=${cswSource.version}&RESULTTYPE=results&MAXRECORDS=${max}&typeNames=csw:Record&elementSetName=full&startPosition=${start}&outputSchema=http://www.isotc211.org/2005/gmd`;
 };
 const getRecords = (cswSource) => {
     // get number of records in service
     return node_fetch_1.default(getRecordsQuery(cswSource, 1, 1))
         .then(result => result.text())
         .then(resultText => {
-        const json = parser.parse(resultText, { ignoreAttributes: false, arrayMode: true }, false);
-        const max = json['csw:GetRecordsResponse'][0]['csw:SearchResults'][0]['@_numberOfRecordsMatched'];
+        const json = parser.parse(resultText, { ignoreAttributes: false, arrayMode: true, ignoreNameSpace: true }, false);
+        const max = json['GetRecordsResponse'][0]['SearchResults'][0]['@_numberOfRecordsMatched'];
         const calls = [];
         for (let c = 0; c < Math.ceil(max / cswSource.limit) && c < 1; c += 1) {
             calls.push(node_fetch_1.default(getRecordsQuery(cswSource, c * cswSource.limit + 1, cswSource.limit))
                 .then(result => result.text())
-                .then(resultText => parser.parse(resultText, { ignoreAttributes: false, arrayMode: true }, false)));
+                .then(resultText => parser.parse(resultText, {
+                ignoreAttributes: false,
+                arrayMode: true,
+                ignoreNameSpace: true,
+            }, false)));
         }
         return Promise.all(calls);
     })
         .then(results => {
         let searchResults = [];
         results.forEach(r => {
-            searchResults = searchResults.concat(r['csw:GetRecordsResponse'][0]['csw:SearchResults'][0]['gmd:MD_Metadata']);
+            searchResults = searchResults.concat(r['GetRecordsResponse'][0]['SearchResults'][0]['MD_Metadata']);
         });
         const cswRecords = [];
         for (let s = 0; s < searchResults.length; s += 1) {
             const record = searchResults[s];
             let resources = [];
             const searchResource = get_1.traverse(record, [
-                'gmd:distributionInfo',
-                'gmd:MD_Distribution',
-                'gmd:transferOptions',
+                'distributionInfo',
+                'MD_Distribution',
+                'transferOptions',
             ]);
             if (searchResource) {
                 resources = searchResource.map(resource => {
@@ -45,67 +49,77 @@ const getRecords = (cswSource) => {
                     else {
                         return {
                             distributionFormat: get_1.onlySimple(get_1.traverse(record, [
-                                'gmd:distributionInfo',
-                                'gmd:MD_Distribution',
-                                'gmd:distributionFormat',
-                                'gmd:MD_Format',
-                                'gmd:name',
-                                'gco:CharacterString',
-                            ])),
+                                'distributionInfo',
+                                'MD_Distribution',
+                                'distributionFormat',
+                                'MD_Format',
+                                'name',
+                                'CharacterString',
+                            ])) ||
+                                get_1.onlySimple(get_1.traverse(record, [
+                                    'distributionInfo',
+                                    'MD_Distribution',
+                                    'distributor',
+                                    'MD_Distributor',
+                                    'distributorFormat',
+                                    'MD_Format',
+                                    'name',
+                                    'CharacterString',
+                                ])),
                             url: get_1.onlySimple(get_1.traverse(resource, [
-                                'gmd:MD_DigitalTransferOptions',
-                                'gmd:onLine',
-                                'gmd:CI_OnlineResource',
-                                'gmd:linkage',
-                                'gmd:URL',
-                            ])),
+                                'MD_DigitalTransferOptions',
+                                'onLine',
+                                'CI_OnlineResource',
+                                'linkage',
+                                'URL',
+                            ], false)),
                             applicationProfile: get_1.onlySimple(get_1.traverse(resource, [
-                                'gmd:MD_DigitalTransferOptions',
-                                'gmd:onLine',
-                                'gmd:CI_OnlineResource',
-                                'gmd:applicationProfile',
-                                'gco:CharacterString',
-                            ])),
+                                'MD_DigitalTransferOptions',
+                                'onLine',
+                                'CI_OnlineResource',
+                                'applicationProfile',
+                                'CharacterString',
+                            ], false)),
                             name: get_1.onlySimple(get_1.traverse(resource, [
-                                'gmd:MD_DigitalTransferOptions',
-                                'gmd:onLine',
-                                'gmd:CI_OnlineResource',
-                                'gmd:name',
-                                'gco:CharacterString',
-                            ])),
+                                'MD_DigitalTransferOptions',
+                                'onLine',
+                                'CI_OnlineResource',
+                                'name',
+                                'CharacterString',
+                            ], false)),
                             description: get_1.onlySimple(get_1.traverse(resource, [
-                                'gmd:MD_DigitalTransferOptions',
-                                'gmd:onLine',
-                                'gmd:CI_OnlineResource',
-                                'gmd:description',
-                                'gco:CharacterString',
-                            ])),
+                                'MD_DigitalTransferOptions',
+                                'onLine',
+                                'CI_OnlineResource',
+                                'description',
+                                'CharacterString',
+                            ], false)),
                             function: get_1.onlySimple(get_1.traverse(resource, [
-                                'gmd:MD_DigitalTransferOptions',
-                                'gmd:onLine',
-                                'gmd:CI_OnlineResource',
-                                'gmd:function',
-                                'gmd:CI_OnLineFunctionCode',
-                                '#text',
-                            ])),
+                                'MD_DigitalTransferOptions',
+                                'onLine',
+                                'CI_OnlineResource',
+                                'function',
+                                'CI_OnLineFunctionCode',
+                                ['#text', '@_codeListValue'],
+                            ], false)),
                             protocol: get_1.onlySimple(get_1.traverse(resource, [
-                                'gmd:MD_DigitalTransferOptions',
-                                'gmd:onLine',
-                                'gmd:CI_OnlineResource',
-                                'gmd:protocol',
-                                'gco:CharacterString',
-                            ])),
+                                'MD_DigitalTransferOptions',
+                                'onLine',
+                                'CI_OnlineResource',
+                                'protocol',
+                                'CharacterString',
+                            ], false)),
                         };
                     }
                 });
             }
             let dates = [];
             const searchDates = get_1.traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:citation',
-                'gmd:CI_Citation',
-                'gmd:date',
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'citation',
+                'CI_Citation',
+                'date',
             ]);
             if (searchDates) {
                 dates = searchDates.map(date => {
@@ -114,93 +128,95 @@ const getRecords = (cswSource) => {
                     }
                     else {
                         return {
-                            date: get_1.traverse(date, [
-                                'gmd:CI_Date',
-                                'gmd:date',
-                                'gco:DateTime',
-                            ]).flat()[0],
-                            type: get_1.traverse(date, [
-                                'gmd:CI_Date',
-                                'gmd:dateType',
-                                'gmd:CI_DateTypeCode',
+                            date: get_1.getFirst(get_1.traverse(date, ['CI_Date', 'date', ['DateTime', 'Date']])),
+                            type: get_1.getFirst(get_1.traverse(date, [
+                                'CI_Date',
+                                'dateType',
+                                ['CI_DateTypeCode', 'CI_DateTypeCode'],
                                 '@_codeListValue',
-                            ]).flat()[0],
+                            ])),
                         };
                     }
                 });
             }
             let constraints = [];
             const searchConstraints = get_1.traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:resourceConstraints',
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'resourceConstraints',
             ]);
             if (searchConstraints) {
-                constraints = searchConstraints.map(constraint => {
+                constraints = searchConstraints
+                    .map(constraint => {
                     if (!constraint) {
-                        return {};
+                        return [{}];
                     }
                     else {
+                        const returnConstraints = [];
                         const useLimitation = get_1.traverse(constraint, [
-                            'gmd:MD_LegalConstraints',
-                            'gmd:useLimitation',
-                            'gco:CharacterString',
-                        ])[0];
+                            ['MD_LegalConstraints', 'MD_Constraints'],
+                            'useLimitation',
+                            'CharacterString',
+                        ]);
                         const useConstraint = get_1.traverse(constraint, [
-                            'gmd:MD_LegalConstraints',
-                            'gmd:useConstraints',
-                            'gmd:MD_RestrictionCode',
+                            ['MD_LegalConstraints', 'MD_Constraints'],
+                            'useConstraints',
+                            'MD_RestrictionCode',
                             '@_codeListValue',
-                        ])[0];
+                        ]);
                         let otherConstraint = get_1.traverse(constraint, [
-                            'gmd:MD_LegalConstraints',
-                            'gmd:otherConstraints',
+                            ['MD_LegalConstraints', 'MD_Constraints'],
+                            'otherConstraints',
                             'gmx:Anchor',
-                            '#text',
-                        ])[0];
-                        if (!otherConstraint) {
+                        ]);
+                        if (!otherConstraint || otherConstraint.length === 0) {
                             otherConstraint = get_1.traverse(constraint, [
-                                'gmd:MD_LegalConstraints',
-                                'gmd:otherConstraints',
-                                'gco:CharacterString',
-                            ])[0];
+                                ['MD_LegalConstraints', 'MD_Constraints'],
+                                'otherConstraints',
+                                'CharacterString',
+                            ]);
                         }
                         const accessConstraint = get_1.traverse(constraint, [
-                            'gmd:MD_LegalConstraints',
-                            'gmd:accessConstraints',
+                            ['MD_LegalConstraints', 'MD_Constraints'],
+                            'accessConstraints',
                             'gmx:MD_RestrictionCode',
-                            '#text',
-                        ])[0];
-                        let type = '';
-                        const value = [];
-                        if (useConstraint) {
-                            type = 'useConstraint';
-                            value.push(useConstraint);
+                            ['#text', '@_codeListValue'],
+                        ]);
+                        if (useConstraint && useConstraint.length !== 0) {
+                            returnConstraints.push({
+                                type: 'useConstraint',
+                                value: useConstraint,
+                            });
                         }
-                        else if (useLimitation) {
-                            type = 'useLimitation';
-                            value.push(useLimitation);
+                        if (useLimitation && useLimitation.length !== 0) {
+                            returnConstraints.push({
+                                type: 'useLimitation',
+                                value: useLimitation,
+                            });
                         }
-                        else if (otherConstraint) {
-                            type = 'otherConstraint';
-                            value.push(otherConstraint);
+                        if (otherConstraint && otherConstraint.length !== 0) {
+                            returnConstraints.push({
+                                type: 'otherConstraint',
+                                value: otherConstraint,
+                            });
                         }
-                        else if (accessConstraint) {
-                            type = 'accessConstraint';
-                            value.push(accessConstraint);
+                        if (accessConstraint && accessConstraint.length !== 0) {
+                            returnConstraints.push({
+                                type: 'accessConstraint',
+                                value: accessConstraint,
+                            });
                         }
-                        return {
-                            type,
-                            value,
-                        };
+                        return returnConstraints;
                     }
-                });
+                })
+                    .flat()
+                    .filter(c => Object.keys(c).length > 0);
             }
             let keywords = [];
             const searchKeywords = get_1.traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:descriptiveKeywords',
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'descriptiveKeywords',
             ]);
             if (searchKeywords) {
                 keywords = searchKeywords.map(keyword => {
@@ -209,124 +225,129 @@ const getRecords = (cswSource) => {
                     }
                     else {
                         return {
-                            name: get_1.traverse(keyword, ['gmd:MD_Keywords', 'gmd:keyword', 'gco:CharacterString'], false).flat(),
+                            name: get_1.traverse(keyword, ['MD_Keywords', 'keyword', 'CharacterString'], false),
                             type: get_1.traverse(keyword, [
-                                'gmd:MD_Keywords',
-                                'gmd:type',
-                                'gmd:MD_KeywordTypeCode',
+                                'MD_Keywords',
+                                'type',
+                                'MD_KeywordTypeCode',
                                 '@_codeListValue',
-                            ]).flat(),
-                            anchor: get_1.traverse(keyword, ['gmd:MD_Keywords', 'gmd:keyword', 'gmx:Anchor', '#text'], false).flat(),
+                            ]),
+                            anchor: get_1.traverse(keyword, ['MD_Keywords', 'keyword', 'gmx:Anchor'], false),
                         };
                     }
                 });
             }
             let organisations = [];
             const searchOrganisations = get_1.traverse(record, [
-                'gmd:identificationInfo',
-                'gmd:MD_DataIdentification',
-                'gmd:pointOfContact',
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'pointOfContact',
             ]);
             if (searchOrganisations) {
                 organisations = searchOrganisations.map(organisation => {
                     if (organisation) {
                         return {
                             type: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:role',
-                                'gmd:CI_RoleCode',
+                                'CI_ResponsibleParty',
+                                'role',
+                                'CI_RoleCode',
                                 '@_codeListValue',
                             ]),
                             name: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:organisationName',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'organisationName',
+                                'CharacterString',
+                            ]),
+                            individualName: get_1.traverse(organisation, [
+                                'CI_ResponsibleParty',
+                                'individualName',
+                                'CharacterString',
                             ]),
                             position: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:positionName',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'positionName',
+                                'CharacterString',
                             ]),
                             phone: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:phone',
-                                'gmd:CI_Telephone',
-                                'gmd:voice',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'phone',
+                                'CI_Telephone',
+                                'voice',
+                                'CharacterString',
                             ]),
                             fax: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:phone',
-                                'gmd:CI_Telephone',
-                                'gmd:facsimile',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'phone',
+                                'CI_Telephone',
+                                'facsimile',
+                                'CharacterString',
                             ]),
                             url: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:onlineResource',
-                                'gmd:CI_OnlineResource',
-                                'gmd:linkage',
-                                'gmd:URL',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'onlineResource',
+                                'CI_OnlineResource',
+                                'linkage',
+                                'URL',
                             ]),
                             email: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:address',
-                                'gmd:CI_Address',
-                                'gmd:electronicMailAddress',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'address',
+                                'CI_Address',
+                                'electronicMailAddress',
+                                'CharacterString',
                             ]),
                             deliveryPoint: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:address',
-                                'gmd:CI_Address',
-                                'gmd:deliveryPoint',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'address',
+                                'CI_Address',
+                                'deliveryPoint',
+                                'CharacterString',
                             ]),
                             city: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:address',
-                                'gmd:CI_Address',
-                                'gmd:city',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'address',
+                                'CI_Address',
+                                'city',
+                                'CharacterString',
                             ]),
                             adminArea: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:address',
-                                'gmd:CI_Address',
-                                'gmd:administrativeArea',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'address',
+                                'CI_Address',
+                                'administrativeArea',
+                                'CharacterString',
                             ]),
                             postcode: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:address',
-                                'gmd:CI_Address',
-                                'gmd:postalCode',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'address',
+                                'CI_Address',
+                                'postalCode',
+                                'CharacterString',
                             ]),
                             country: get_1.traverse(organisation, [
-                                'gmd:CI_ResponsibleParty',
-                                'gmd:contactInfo',
-                                'gmd:CI_Contact',
-                                'gmd:address',
-                                'gmd:CI_Address',
-                                'gmd:country',
-                                'gco:CharacterString',
+                                'CI_ResponsibleParty',
+                                'contactInfo',
+                                'CI_Contact',
+                                'address',
+                                'CI_Address',
+                                'country',
+                                'CharacterString',
                             ]),
                         };
                     }
@@ -336,184 +357,205 @@ const getRecords = (cswSource) => {
                 });
             }
             cswRecords.push({
-                id: get_1.traverse(record, [
-                    'gmd:fileIdentifier',
-                    'gco:CharacterString',
-                ])[0],
+                id: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, ['fileIdentifier', 'CharacterString']))),
                 languageCode: get_1.traverse(record, [
-                    'gmd:language',
-                    'gmd:LanguageCode',
-                    '#text',
-                ]),
+                    'language',
+                    ['#text', '@_codeListValue', 'CharacterString'],
+                ]) ||
+                    get_1.traverse(record, [
+                        'language',
+                        'LanguageCode',
+                        ['#text', '@_codeListValue'],
+                    ]),
                 parentIdentifier: get_1.traverse(record, [
-                    'gmd:parentIdentifier',
-                    'gco:CharacterString',
+                    'parentIdentifier',
+                    'CharacterString',
                 ]),
                 hierarchyLevel: get_1.traverse(record, [
-                    'gmd:hierarchyLevel',
-                    'gmd:MD_ScopeCode',
-                    '#text',
+                    'hierarchyLevel',
+                    'MD_ScopeCode',
+                    ['#text', '@_codeListValue'],
                 ]),
                 hierarchyLevelName: get_1.traverse(record, [
-                    'gmd:hierarchyLevelName',
-                    'gco:CharacterString',
+                    'hierarchyLevelName',
+                    'CharacterString',
                 ]),
-                dateStamp: get_1.traverse(record, ['gmd:dateStamp', 'gco:Date']),
+                dateStamp: get_1.traverse(record, ['dateStamp', ['Date', 'DateTime']]),
+                edition: get_1.getFirst(get_1.traverse(record, [
+                    'identificationInfo',
+                    ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                    'citation',
+                    'CI_Citation',
+                    'edition',
+                    'CharacterString',
+                ])),
                 abstract: get_1.traverse(record, [
-                    'gmd:identificationInfo',
-                    'gmd:MD_DataIdentification',
-                    'gmd:abstract',
-                    'gco:CharacterString',
+                    'identificationInfo',
+                    ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                    'abstract',
+                    'CharacterString',
                 ]),
                 resources,
                 srid: get_1.traverse(record, [
-                    'gmd:referenceSystemInfo',
-                    'gmd:MD_ReferenceSystem',
-                    'gmd:referenceSystemIdentifier',
-                    'gmd:RS_Identifier',
-                    'gmd:code',
-                    'gmx:Anchor',
-                    '#text',
+                    'referenceSystemInfo',
+                    'MD_ReferenceSystem',
+                    'referenceSystemIdentifier',
+                    'RS_Identifier',
+                    'code',
+                    ['gmx:Anchor', 'CharacterString'],
+                ]),
+                purpose: get_1.traverse(record, [
+                    'identificationInfo',
+                    ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                    'purpose',
+                    'CharacterString',
                 ]),
                 title: get_1.traverse(record, [
-                    'gmd:identificationInfo',
-                    'gmd:MD_DataIdentification',
-                    'gmd:citation',
-                    'gmd:CI_Citation',
-                    'gmd:title',
-                    'gco:CharacterString',
+                    'identificationInfo',
+                    ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                    'citation',
+                    'CI_Citation',
+                    'title',
+                    'CharacterString',
                 ]),
                 alternateTitle: get_1.traverse(record, [
-                    'gmd:identificationInfo',
-                    'gmd:MD_DataIdentification',
-                    'gmd:citation',
-                    'gmd:CI_Citation',
-                    'gmd:alternateTitle',
-                    'gco:CharacterString',
+                    'identificationInfo',
+                    ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                    'citation',
+                    'CI_Citation',
+                    'alternateTitle',
+                    'CharacterString',
                 ]),
                 organisations,
                 dates,
                 category: get_1.traverse(record, [
-                    'gmd:identificationInfo',
-                    'gmd:MD_DataIdentification',
-                    'gmd:topicCategory',
-                    'gmd:MD_TopicCategoryCode',
+                    'identificationInfo',
+                    ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                    'topicCategory',
+                    'MD_TopicCategoryCode',
                 ]),
                 spatialResolution: get_1.traverse(record, [
-                    'gmd:identificationInfo',
-                    'gmd:MD_DataIdentification',
-                    'gmd:citation',
-                    'gmd:spatialResolution',
-                    'gmd:MD_Resolution',
-                    'gmd:equivalentScale',
-                    'gmd:MD_RepresentativeFraction',
-                    'gmd:denominator',
-                    'gco:Integer',
+                    'identificationInfo',
+                    ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                    'spatialResolution',
+                    'MD_Resolution',
+                    'equivalentScale',
+                    'MD_RepresentativeFraction',
+                    'denominator',
+                    'Integer',
                 ]),
                 geographicDescription: get_1.traverse(record, [
-                    'gmd:identificationInfo',
-                    'gmd:MD_DataIdentification',
-                    'gmd:extent',
-                    'gmd:EX_Extent',
-                    'gmd:geographicElement',
-                    'gmd:EX_GeographicDescription',
-                    'gmd:geographicIdentifier',
-                    'gmd:MD_Identifier',
-                    'gmd:code',
-                    'gco:CharacterString',
+                    'identificationInfo',
+                    ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                    'extent',
+                    'EX_Extent',
+                    'geographicElement',
+                    'EX_GeographicDescription',
+                    'geographicIdentifier',
+                    'MD_Identifier',
+                    'code',
+                    'CharacterString',
                 ]),
                 temporalExtent: {
                     start: get_1.onlySimple(get_1.traverse(record, [
-                        'gmd:identificationInfo',
-                        'gmd:MD_DataIdentification',
-                        'gmd:extent',
-                        'gmd:EX_Extent',
-                        'gmd:temporalElement',
-                        'gmd:EX_TemporalExtent',
-                        'gmd:extent',
+                        'identificationInfo',
+                        ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                        'extent',
+                        'EX_Extent',
+                        'temporalElement',
+                        'EX_TemporalExtent',
+                        'extent',
                         'gml:TimePeriod',
                         'gml:beginPosition',
                     ])),
                     end: get_1.onlySimple(get_1.traverse(record, [
-                        'gmd:identificationInfo',
-                        'gmd:MD_DataIdentification',
-                        'gmd:extent',
-                        'gmd:EX_Extent',
-                        'gmd:temporalElement',
-                        'gmd:EX_TemporalExtent',
-                        'gmd:extent',
+                        'identificationInfo',
+                        ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                        'extent',
+                        'EX_Extent',
+                        'temporalElement',
+                        'EX_TemporalExtent',
+                        'extent',
                         'gml:TimePeriod',
                         'gml:endPosition',
                     ])),
                     startUndetermined: get_1.onlySimple(get_1.traverse(record, [
-                        'gmd:identificationInfo',
-                        'gmd:MD_DataIdentification',
-                        'gmd:extent',
-                        'gmd:EX_Extent',
-                        'gmd:temporalElement',
-                        'gmd:EX_TemporalExtent',
-                        'gmd:extent',
+                        'identificationInfo',
+                        ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                        'extent',
+                        'EX_Extent',
+                        'temporalElement',
+                        'EX_TemporalExtent',
+                        'extent',
                         'gml:TimePeriod',
                         'gml:beginPosition',
                         '@_indeterminatePosition',
                     ])),
                     endUndetermined: get_1.onlySimple(get_1.traverse(record, [
-                        'gmd:identificationInfo',
-                        'gmd:MD_DataIdentification',
-                        'gmd:extent',
-                        'gmd:EX_Extent',
-                        'gmd:temporalElement',
-                        'gmd:EX_TemporalExtent',
-                        'gmd:extent',
+                        'identificationInfo',
+                        ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                        'extent',
+                        'EX_Extent',
+                        'temporalElement',
+                        'EX_TemporalExtent',
+                        'extent',
                         'gml:TimePeriod',
                         'gml:endPosition',
                         '@_indeterminatePosition',
                     ])),
                 },
                 spatialExtent: {
+                    description: get_1.traverse(record, [
+                        'identificationInfo',
+                        ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                        'extent',
+                        'EX_Extent',
+                        'description',
+                        'CharacterString',
+                    ]),
                     longitude: [
-                        get_1.traverse(record, [
-                            'gmd:identificationInfo',
-                            'gmd:MD_DataIdentification',
-                            'gmd:extent',
-                            'gmd:EX_Extent',
-                            'gmd:geographicElement',
-                            'gmd:EX_GeographicBoundingBox',
-                            'gmd:westBoundLongitude',
-                            'gco:Decimal',
-                        ])[0],
-                        get_1.traverse(record, [
-                            'gmd:identificationInfo',
-                            'gmd:MD_DataIdentification',
-                            'gmd:extent',
-                            'gmd:EX_Extent',
-                            'gmd:geographicElement',
-                            'gmd:EX_GeographicBoundingBox',
-                            'gmd:eastBoundLongitude',
-                            'gco:Decimal',
-                        ])[0],
+                        get_1.getFirst(get_1.traverse(record, [
+                            'identificationInfo',
+                            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                            'extent',
+                            'EX_Extent',
+                            'geographicElement',
+                            'EX_GeographicBoundingBox',
+                            'westBoundLongitude',
+                            'Decimal',
+                        ])),
+                        get_1.getFirst(get_1.traverse(record, [
+                            'identificationInfo',
+                            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                            'extent',
+                            'EX_Extent',
+                            'geographicElement',
+                            'EX_GeographicBoundingBox',
+                            'eastBoundLongitude',
+                            'Decimal',
+                        ])),
                     ],
                     latitude: [
-                        get_1.traverse(record, [
-                            'gmd:identificationInfo',
-                            'gmd:MD_DataIdentification',
-                            'gmd:extent',
-                            'gmd:EX_Extent',
-                            'gmd:geographicElement',
-                            'gmd:EX_GeographicBoundingBox',
-                            'gmd:southBoundLatitude',
-                            'gco:Decimal',
-                        ])[0],
-                        get_1.traverse(record, [
-                            'gmd:identificationInfo',
-                            'gmd:MD_DataIdentification',
-                            'gmd:extent',
-                            'gmd:EX_Extent',
-                            'gmd:geographicElement',
-                            'gmd:EX_GeographicBoundingBox',
-                            'gmd:northBoundLatitude',
-                            'gco:Decimal',
-                        ])[0],
+                        get_1.getFirst(get_1.traverse(record, [
+                            'identificationInfo',
+                            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                            'extent',
+                            'EX_Extent',
+                            'geographicElement',
+                            'EX_GeographicBoundingBox',
+                            'southBoundLatitude',
+                            'Decimal',
+                        ])),
+                        get_1.getFirst(get_1.traverse(record, [
+                            'identificationInfo',
+                            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                            'extent',
+                            'EX_Extent',
+                            'geographicElement',
+                            'EX_GeographicBoundingBox',
+                            'northBoundLatitude',
+                            'Decimal',
+                        ])),
                     ],
                 },
                 keywords,
