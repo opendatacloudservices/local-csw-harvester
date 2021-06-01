@@ -31,8 +31,11 @@
   "homepage": "https://github.com/opendatacloudservices/local-csw-harvester#readme",
   "keywords": [],
   "devDependencies": {
+    "@types/express": "^4.17.12",
     "@types/node": "^14.17.1",
     "@types/node-fetch": "^2.5.10",
+    "@types/pg": "^8.6.0",
+    "@types/uuid": "^8.3.0",
     "eslint": "^7.27.0",
     "gts": "^3.1.0",
     "jest": "^27.0.1",
@@ -40,7 +43,14 @@
     "typescript": "^4.0.3"
   },
   "dependencies": {
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
     "fast-xml-parser": "^3.19.0",
-    "node-fetch": "^2.6.1"
+    "local-logger": "file:../local-logger",
+    "local-microservice": "file:../local-microservice",
+    "local-pm2-config": "file:../local-pm2-config",
+    "node-fetch": "^2.6.1",
+    "pg": "^8.6.0",
+    "uuid": "^8.3.2"
   }
 }

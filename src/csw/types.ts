@@ -288,6 +288,13 @@ export type CswSource = {
   url: string;
   limit: number;
   version: string;
+  id?: number;
+  type: 'get' | 'post';
+  prefix: string;
+  longName: string;
+  note?: string;
+  active: boolean;
+  specialParams?: string;
 };
 
 type CswValue = (string | number | boolean | null)[] | null;
@@ -295,18 +302,18 @@ type CswSingleValue = string | number | boolean | null;
 
 export type CswRecord = {
   id?: CswSingleValue;
-  languageCode?: CswValue;
-  parentIdentifier?: CswValue;
-  hierarchyLevel?: CswValue;
-  hierarchyLevelName?: CswValue;
-  dateStamp?: CswValue;
-  abstract?: CswValue;
+  languageCode?: CswSingleValue;
+  parentIdentifier?: CswSingleValue;
+  hierarchyLevel?: CswSingleValue;
+  hierarchyLevelName?: CswSingleValue;
+  dateStamp?: CswSingleValue;
+  abstract?: CswSingleValue;
   resources?: CswResource[];
   srid?: CswValue;
   purpose?: CswValue;
-  title?: CswValue;
+  title?: CswSingleValue;
   edition?: CswSingleValue;
-  alternateTitle?: CswValue;
+  alternateTitle?: CswSingleValue;
   organisations?: CswContact[];
   dates?: CswDate[];
   category?: CswValue;

@@ -23,12 +23,57 @@ const getRecordsQuery = (
   start: number,
   max: number
 ): string => {
-  return `${cswSource.url}?REQUEST=GetRecords&SERVICE=CSW&VERSION=${cswSource.version}&RESULTTYPE=results&MAXRECORDS=${max}&typeNames=csw:Record&elementSetName=full&startPosition=${start}&outputSchema=http://www.isotc211.org/2005/gmd`;
+  return `${cswSource.url}?REQUEST=GetRecords&SERVICE=CSW&VERSION=${
+    cswSource.version
+  }&RESULTTYPE=results&MAXRECORDS=${max}&typeNames=csw:Record&elementSetName=full&startPosition=${start}&outputSchema=http://www.isotc211.org/2005/gmd${
+    cswSource.specialParams && cswSource.specialParams.length > 0
+      ? cswSource.specialParams
+      : ''
+  }`;
+};
+
+const getRecordsQueryXML = (
+  cswSource: CswSource,
+  start: number,
+  max: number
+): {
+  method: string;
+  headers: {
+    [key: string]: string;
+  };
+  body: string;
+} => {
+  return {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/xml',
+    },
+    body: `<?xml version="1.0" ?>
+    <csw:GetRecords
+      xmlns:csw="http://www.opengis.net/cat/csw/${cswSource.version}" 		 
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+      xmlns:ows="http://www.opengis.net/ows" 
+      outputFormat="application/xml"
+      version="${cswSource.version}"
+      service="CSW"
+      resultType="results"
+      maxRecords="${max}" 
+      startPosition="${start}"
+      outputSchema="http://www.isotc211.org/2005/gmd" 
+      xsi:schemaLocation="http://www.opengis.net/cat/csw/${cswSource.version} http://schemas.opengis.net/csw/${cswSource.version}/CSW-discovery.xsd">
+      <csw:Query typeNames="csw:Record">
+        <csw:ElementSetName>full</csw:ElementSetName>
+      </csw:Query>
+    </csw:GetRecords>`,
+  };
 };
 
 export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
   // get number of records in service
-  return fetch(getRecordsQuery(cswSource, 1, 1))
+  return fetch(
+    getRecordsQuery(cswSource, 1, 1),
+    cswSource.type === 'post' ? getRecordsQueryXML(cswSource, 1, 1) : {}
+  )
     .then(result => result.text())
     .then(resultText => {
       const json = parser.parse(
@@ -37,16 +82,32 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
         false
       );
 
+      if ('ExceptionReport' in json) {
+        // THROW ERROR, PROBLEM
+        // JSON.stringify(json)
+      }
+
       const max =
         json['GetRecordsResponse'][0]['SearchResults'][0][
           '@_numberOfRecordsMatched'
         ];
 
       const calls = [];
-      for (let c = 0; c < Math.ceil(max / cswSource.limit) && c < 1; c += 1) {
+      for (let c = 0; c < Math.ceil(max / cswSource.limit); c += 1) {
         calls.push(
           fetch(
-            getRecordsQuery(cswSource, c * cswSource.limit + 1, cswSource.limit)
+            getRecordsQuery(
+              cswSource,
+              c * cswSource.limit + 1,
+              cswSource.limit
+            ),
+            cswSource.type === 'post'
+              ? getRecordsQueryXML(
+                  cswSource,
+                  c * cswSource.limit + 1,
+                  cswSource.limit
+                )
+              : {}
           )
             .then(result => result.text())
             .then(resultText =>
@@ -68,9 +129,11 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
     .then(results => {
       let searchResults: CswRawRecord[] = [];
       results.forEach(r => {
-        searchResults = searchResults.concat(
-          r['GetRecordsResponse'][0]['SearchResults'][0]['MD_Metadata']
-        );
+        if (!('ExceptionReport' in r)) {
+          searchResults = searchResults.concat(
+            r['GetRecordsResponse'][0]['SearchResults'][0]['MD_Metadata']
+          );
+        }
       });
 
       const cswRecords = [];
@@ -457,29 +520,45 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
             onlySimple(traverse(record, ['fileIdentifier', 'CharacterString']))
           ),
           languageCode:
-            traverse(record, [
-              'language',
-              ['#text', '@_codeListValue', 'CharacterString'],
-            ]) ||
-            traverse(record, [
-              'language',
-              'LanguageCode',
-              ['#text', '@_codeListValue'],
-            ]),
-          parentIdentifier: traverse(record, [
-            'parentIdentifier',
-            'CharacterString',
-          ]),
-          hierarchyLevel: traverse(record, [
-            'hierarchyLevel',
-            'MD_ScopeCode',
-            ['#text', '@_codeListValue'],
-          ]),
-          hierarchyLevelName: traverse(record, [
-            'hierarchyLevelName',
-            'CharacterString',
-          ]),
-          dateStamp: traverse(record, ['dateStamp', ['Date', 'DateTime']]),
+            getFirst(
+              onlySimple(
+                traverse(record, [
+                  'language',
+                  ['#text', '@_codeListValue', 'CharacterString'],
+                ])
+              )
+            ) ||
+            getFirst(
+              onlySimple(
+                traverse(record, [
+                  'language',
+                  'LanguageCode',
+                  ['#text', '@_codeListValue'],
+                ])
+              )
+            ),
+          parentIdentifier: getFirst(
+            onlySimple(
+              traverse(record, ['parentIdentifier', 'CharacterString'])
+            )
+          ),
+          hierarchyLevel: getFirst(
+            onlySimple(
+              traverse(record, [
+                'hierarchyLevel',
+                'MD_ScopeCode',
+                ['#text', '@_codeListValue'],
+              ])
+            )
+          ),
+          hierarchyLevelName: getFirst(
+            onlySimple(
+              traverse(record, ['hierarchyLevelName', 'CharacterString'])
+            )
+          ),
+          dateStamp: getFirst(
+            onlySimple(traverse(record, ['dateStamp', ['Date', 'DateTime']]))
+          ),
           edition: getFirst(
             traverse(record, [
               'identificationInfo',
@@ -490,12 +569,16 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
               'CharacterString',
             ])
           ),
-          abstract: traverse(record, [
-            'identificationInfo',
-            ['MD_DataIdentification', 'SV_ServiceIdentification'],
-            'abstract',
-            'CharacterString',
-          ]),
+          abstract: getFirst(
+            onlySimple(
+              traverse(record, [
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'abstract',
+                'CharacterString',
+              ])
+            )
+          ),
           resources,
           srid: traverse(record, [
             'referenceSystemInfo',
@@ -511,22 +594,30 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
             'purpose',
             'CharacterString',
           ]),
-          title: traverse(record, [
-            'identificationInfo',
-            ['MD_DataIdentification', 'SV_ServiceIdentification'],
-            'citation',
-            'CI_Citation',
-            'title',
-            'CharacterString',
-          ]),
-          alternateTitle: traverse(record, [
-            'identificationInfo',
-            ['MD_DataIdentification', 'SV_ServiceIdentification'],
-            'citation',
-            'CI_Citation',
-            'alternateTitle',
-            'CharacterString',
-          ]),
+          title: getFirst(
+            onlySimple(
+              traverse(record, [
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'citation',
+                'CI_Citation',
+                'title',
+                'CharacterString',
+              ])
+            )
+          ),
+          alternateTitle: getFirst(
+            onlySimple(
+              traverse(record, [
+                'identificationInfo',
+                ['MD_DataIdentification', 'SV_ServiceIdentification'],
+                'citation',
+                'CI_Citation',
+                'alternateTitle',
+                'CharacterString',
+              ])
+            )
+          ),
           organisations,
           dates,
           category: traverse(record, [
