@@ -295,43 +295,45 @@ export type CswSource = {
   note?: string;
   active: boolean;
   specialParams?: string;
+  rateLimit: number | null;
 };
 
 type CswValue = (string | number | boolean | null)[] | null;
 type CswSingleValue = string | number | boolean | null;
 
 export type CswRecord = {
-  id?: CswSingleValue;
-  languageCode?: CswSingleValue;
-  parentIdentifier?: CswSingleValue;
-  hierarchyLevel?: CswSingleValue;
-  hierarchyLevelName?: CswSingleValue;
-  dateStamp?: CswSingleValue;
-  abstract?: CswSingleValue;
-  resources?: CswResource[];
-  srid?: CswValue;
-  purpose?: CswValue;
-  title?: CswSingleValue;
-  edition?: CswSingleValue;
-  alternateTitle?: CswSingleValue;
-  organisations?: CswContact[];
-  dates?: CswDate[];
-  category?: CswValue;
-  spatialResolution?: CswValue;
+  id: CswSingleValue;
+  languageCode: CswSingleValue;
+  parentIdentifier: CswSingleValue;
+  hierarchyLevel: CswSingleValue;
+  hierarchyLevelName: CswSingleValue;
+  dateStamp: CswSingleValue;
+  abstract: CswSingleValue;
+  resources: CswResource[];
+  srid: CswValue;
+  purpose: CswValue;
+  title: CswSingleValue;
+  edition: CswValue;
+  alternateTitle: CswSingleValue;
+  organisations: CswContact[];
+  dates: CswDate[];
+  category: CswValue;
+  spatialResolution: CswValue;
   spatialType?: CswValue;
-  geographicDescription?: CswValue;
-  temporalExtent?: {
-    start?: CswValue;
-    startUndetermined?: CswValue;
-    end?: CswValue;
-    endUndetermined?: CswValue;
+  geographicDescription: CswValue;
+  temporalExtent: {
+    start: CswValue;
+    startUndetermined: CswValue;
+    end: CswValue;
+    endUndetermined: CswValue;
   };
-  spatialExtent?: {
+  spatialExtent: {
     description: CswValue;
     longitude: CswValue;
     latitude: CswValue;
   };
   keywords: CswKeyword[];
+  constraints: CswConstraint[];
 };
 
 export type CswDate = {
@@ -340,39 +342,47 @@ export type CswDate = {
 };
 
 export type CswKeyword = {
-  name?: CswValue;
-  type?: CswValue;
-  anchor?: CswValue;
+  name: CswValue;
+  type: CswValue;
+  anchor: CswValue;
 };
 
 export type CswResource = {
-  distributionFormat?: CswValue;
-  url?: CswValue;
-  applicationProfile?: CswValue;
-  name?: CswValue;
-  description?: CswValue;
-  function?: CswValue;
-  protocol?: CswValue;
+  distributionFormat: CswValue;
+  url: CswValue;
+  applicationProfile: CswValue;
+  name: CswValue;
+  description: CswValue;
+  function: CswValue;
+  protocol: CswValue;
 };
 
 export type CswContact = {
-  type?: CswValue;
-  name?: CswValue;
-  individualName?: CswValue;
-  position?: CswValue;
-  phone?: CswValue;
-  fax?: CswValue;
-  url?: CswValue;
-  email?: CswValue;
-  deliveryPoint?: CswValue;
-  city?: CswValue;
-  adminArea?: CswValue;
-  postcode?: CswValue;
-  country?: CswValue;
+  type: CswValue;
+  name: CswValue;
+  individualName: CswValue;
+  position: CswValue;
+  phone: CswValue;
+  fax: CswValue;
+  url: CswValue;
+  email: CswValue;
+  deliveryPoint: CswValue;
+  city: CswValue;
+  adminArea: CswValue;
+  postcode: CswValue;
+  country: CswValue;
   id?: CswValue;
 };
 
 export type CswConstraint = {
   type?: string;
   value?: CswValue;
+};
+
+export type fetchOptions = {
+  method?: string;
+  headers?: {
+    [key: string]: string;
+  };
+  body?: string;
 };

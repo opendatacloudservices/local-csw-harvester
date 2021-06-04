@@ -54,7 +54,7 @@ obj, path, clearNull = true
     let tPath = '__notfound__';
     if (Array.isArray(path[0])) {
         for (let p = 0; p < path[0].length && tPath === '__notfound__'; p += 1) {
-            if (path[0][p] in tObj) {
+            if (typeof tObj === 'object' && path[0][p] in tObj) {
                 tPath = path[0][p];
             }
         }

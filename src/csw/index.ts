@@ -1,7 +1,6 @@
 import fetch from 'node-fetch';
 import * as parser from 'fast-xml-parser';
 import {traverse, onlySimple, getFirst} from './get';
-import {writeFileSync} from 'fs';
 import {
   CswContact,
   CswSource,
@@ -16,6 +15,7 @@ import {
   CswConstraint,
   CswRawConstraint,
   CswRawKeyword,
+  fetchOptions,
 } from './types';
 
 const getRecordsQuery = (
@@ -36,13 +36,7 @@ const getRecordsQueryXML = (
   cswSource: CswSource,
   start: number,
   max: number
-): {
-  method: string;
-  headers: {
-    [key: string]: string;
-  };
-  body: string;
-} => {
+): fetchOptions => {
   return {
     method: 'POST',
     headers: {
@@ -68,7 +62,9 @@ const getRecordsQueryXML = (
   };
 };
 
-export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
+export const packageList = (
+  cswSource: CswSource
+): Promise<{url: string; options: fetchOptions}[]> => {
   // get number of records in service
   return fetch(
     getRecordsQuery(cswSource, 1, 1),
@@ -83,8 +79,7 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
       );
 
       if ('ExceptionReport' in json) {
-        // THROW ERROR, PROBLEM
-        // JSON.stringify(json)
+        throw new Error(JSON.stringify(json));
       }
 
       const max =
@@ -94,47 +89,50 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
 
       const calls = [];
       for (let c = 0; c < Math.ceil(max / cswSource.limit); c += 1) {
-        calls.push(
-          fetch(
-            getRecordsQuery(
-              cswSource,
-              c * cswSource.limit + 1,
-              cswSource.limit
-            ),
+        calls.push({
+          url: getRecordsQuery(
+            cswSource,
+            c * cswSource.limit + 1,
+            cswSource.limit
+          ),
+          options:
             cswSource.type === 'post'
               ? getRecordsQueryXML(
                   cswSource,
                   c * cswSource.limit + 1,
                   cswSource.limit
                 )
-              : {}
-          )
-            .then(result => result.text())
-            .then(resultText =>
-              parser.parse(
-                resultText,
-                {
-                  ignoreAttributes: false,
-                  arrayMode: true,
-                  ignoreNameSpace: true,
-                },
-                false
-              )
-            )
-        );
+              : {},
+        });
+      }
+      return calls;
+    });
+};
+
+export const packageShow = (queueItem: {
+  url: string;
+  options: fetchOptions;
+}): Promise<CswRecord[]> => {
+  return fetch(queueItem.url, queueItem.options)
+    .then(result => result.text())
+    .then(resultText =>
+      parser.parse(
+        resultText,
+        {
+          ignoreAttributes: false,
+          arrayMode: true,
+          ignoreNameSpace: true,
+        },
+        false
+      )
+    )
+    .then(results => {
+      if ('ExceptionReport' in results) {
+        throw new Error(JSON.stringify(results));
       }
 
-      return Promise.all(calls);
-    })
-    .then(results => {
-      let searchResults: CswRawRecord[] = [];
-      results.forEach(r => {
-        if (!('ExceptionReport' in r)) {
-          searchResults = searchResults.concat(
-            r['GetRecordsResponse'][0]['SearchResults'][0]['MD_Metadata']
-          );
-        }
-      });
+      const searchResults: CswRawRecord[] =
+        results['GetRecordsResponse'][0]['SearchResults'][0]['MD_Metadata'];
 
       const cswRecords = [];
       for (let s = 0; s < searchResults.length; s += 1) {
@@ -147,10 +145,11 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
           'transferOptions',
         ]);
         if (searchResource) {
-          resources = searchResource.map(resource => {
-            if (!resource) {
-              return {};
-            } else {
+          resources = searchResource
+            .filter(r => {
+              return r ? true : false;
+            })
+            .map(resource => {
               return {
                 distributionFormat:
                   onlySimple(
@@ -255,8 +254,7 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
                   )
                 ),
               };
-            }
-          });
+            });
         }
 
         let dates: CswDate[] = [];
@@ -297,70 +295,68 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
         ]);
         if (searchConstraints) {
           constraints = searchConstraints
+            .filter(c => {
+              return c ? true : false;
+            })
             .map(constraint => {
-              if (!constraint) {
-                return [{}];
-              } else {
-                const returnConstraints: CswConstraint[] = [];
-                const useLimitation = traverse(constraint, [
-                  ['MD_LegalConstraints', 'MD_Constraints'],
-                  'useLimitation',
-                  'CharacterString',
-                ]);
-                const useConstraint = traverse(constraint, [
-                  ['MD_LegalConstraints', 'MD_Constraints'],
-                  'useConstraints',
-                  'MD_RestrictionCode',
-                  '@_codeListValue',
-                ]);
-                let otherConstraint = traverse(constraint, [
+              const returnConstraints: CswConstraint[] = [];
+              const useLimitation = traverse(constraint, [
+                ['MD_LegalConstraints', 'MD_Constraints'],
+                'useLimitation',
+                'CharacterString',
+              ]);
+              const useConstraint = traverse(constraint, [
+                ['MD_LegalConstraints', 'MD_Constraints'],
+                'useConstraints',
+                'MD_RestrictionCode',
+                '@_codeListValue',
+              ]);
+              let otherConstraint = traverse(constraint, [
+                ['MD_LegalConstraints', 'MD_Constraints'],
+                'otherConstraints',
+                'gmx:Anchor',
+              ]);
+              if (!otherConstraint || otherConstraint.length === 0) {
+                otherConstraint = traverse(constraint, [
                   ['MD_LegalConstraints', 'MD_Constraints'],
                   'otherConstraints',
-                  'gmx:Anchor',
+                  'CharacterString',
                 ]);
-                if (!otherConstraint || otherConstraint.length === 0) {
-                  otherConstraint = traverse(constraint, [
-                    ['MD_LegalConstraints', 'MD_Constraints'],
-                    'otherConstraints',
-                    'CharacterString',
-                  ]);
-                }
-                const accessConstraint = traverse(constraint, [
-                  ['MD_LegalConstraints', 'MD_Constraints'],
-                  'accessConstraints',
-                  'gmx:MD_RestrictionCode',
-                  ['#text', '@_codeListValue'],
-                ]);
-                if (useConstraint && useConstraint.length !== 0) {
-                  returnConstraints.push({
-                    type: 'useConstraint',
-                    value: useConstraint,
-                  });
-                }
-                if (useLimitation && useLimitation.length !== 0) {
-                  returnConstraints.push({
-                    type: 'useLimitation',
-                    value: useLimitation,
-                  });
-                }
-                if (otherConstraint && otherConstraint.length !== 0) {
-                  returnConstraints.push({
-                    type: 'otherConstraint',
-                    value: otherConstraint,
-                  });
-                }
-                if (accessConstraint && accessConstraint.length !== 0) {
-                  returnConstraints.push({
-                    type: 'accessConstraint',
-                    value: accessConstraint,
-                  });
-                }
-
-                return returnConstraints;
               }
+              const accessConstraint = traverse(constraint, [
+                ['MD_LegalConstraints', 'MD_Constraints'],
+                'accessConstraints',
+                'gmx:MD_RestrictionCode',
+                ['#text', '@_codeListValue'],
+              ]);
+              if (useConstraint && useConstraint.length !== 0) {
+                returnConstraints.push({
+                  type: 'useConstraint',
+                  value: useConstraint,
+                });
+              }
+              if (useLimitation && useLimitation.length !== 0) {
+                returnConstraints.push({
+                  type: 'useLimitation',
+                  value: useLimitation,
+                });
+              }
+              if (otherConstraint && otherConstraint.length !== 0) {
+                returnConstraints.push({
+                  type: 'otherConstraint',
+                  value: otherConstraint,
+                });
+              }
+              if (accessConstraint && accessConstraint.length !== 0) {
+                returnConstraints.push({
+                  type: 'accessConstraint',
+                  value: accessConstraint,
+                });
+              }
+
+              return returnConstraints;
             })
-            .flat()
-            .filter(c => Object.keys(c).length > 0);
+            .flat();
         }
 
         let keywords: CswKeyword[] = [];
@@ -370,10 +366,11 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
           'descriptiveKeywords',
         ]);
         if (searchKeywords) {
-          keywords = searchKeywords.map(keyword => {
-            if (!keyword) {
-              return {};
-            } else {
+          keywords = searchKeywords
+            .filter(k => {
+              return k ? true : false;
+            })
+            .map(keyword => {
               return {
                 name: traverse(
                   keyword,
@@ -392,8 +389,7 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
                   false
                 ),
               };
-            }
-          });
+            });
         }
 
         let organisations: CswContact[] = [];
@@ -403,8 +399,11 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
           'pointOfContact',
         ]);
         if (searchOrganisations) {
-          organisations = searchOrganisations.map(organisation => {
-            if (organisation) {
+          organisations = searchOrganisations
+            .filter(o => {
+              return o ? true : false;
+            })
+            .map(organisation => {
               return {
                 type: traverse(organisation, [
                   'CI_ResponsibleParty',
@@ -509,10 +508,7 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
                   'CharacterString',
                 ]),
               };
-            } else {
-              return {};
-            }
-          });
+            });
         }
 
         cswRecords.push({
@@ -559,16 +555,14 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
           dateStamp: getFirst(
             onlySimple(traverse(record, ['dateStamp', ['Date', 'DateTime']]))
           ),
-          edition: getFirst(
-            traverse(record, [
-              'identificationInfo',
-              ['MD_DataIdentification', 'SV_ServiceIdentification'],
-              'citation',
-              'CI_Citation',
-              'edition',
-              'CharacterString',
-            ])
-          ),
+          edition: traverse(record, [
+            'identificationInfo',
+            ['MD_DataIdentification', 'SV_ServiceIdentification'],
+            'citation',
+            'CI_Citation',
+            'edition',
+            'CharacterString',
+          ]),
           abstract: getFirst(
             onlySimple(
               traverse(record, [
@@ -770,18 +764,6 @@ export const getRecords = (cswSource: CswSource): Promise<CswRecord[]> => {
           constraints,
         });
       }
-
-      writeFileSync(
-        './tmp/csw-output.json',
-        JSON.stringify(cswRecords, null, 2),
-        'utf8'
-      );
-
-      writeFileSync(
-        './tmp/csw-test.json',
-        JSON.stringify(searchResults, null, 2),
-        'utf8'
-      );
 
       return cswRecords;
     });

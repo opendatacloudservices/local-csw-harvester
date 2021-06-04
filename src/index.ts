@@ -1,10 +1,17 @@
-import {getRecords} from './csw/index';
+import {packageList, packageShow} from './csw/index';
 import {
   resetQueues,
   initMasterTable,
   createInstance,
   getInstance,
   resetTables,
+  insertQueue,
+  getAllInstances,
+  nextPackage,
+  setQueueFailed,
+  removeFromQueue,
+  getQueueItem,
+  processPackages,
 } from './postgres/index';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -171,6 +178,12 @@ api.get('/master/init', (req, res) => {
  *         required: false
  *         schema:
  *           type: string
+ *       - name: rateLimit
+ *         description: params to be attached to the query URL
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
  *     responses:
  *       200:
  *         description: Init completed
@@ -232,6 +245,10 @@ api.get('/instance/init', (req, res) => {
         req.query.specialParams === undefined
           ? ''
           : req.query.specialParams.toString(),
+      rateLimit:
+        req.query.rateLimit === undefined
+          ? null
+          : parseInt(req.query.rateLimit.toString()),
     })
       .then(() => {
         res.status(200).json({message: 'Init completed'});
@@ -248,7 +265,7 @@ api.get('/instance/init', (req, res) => {
  * /instance/reset/{identifier}:
  *   get:
  *     operationId: getInstanceReset
- *     description: Reset all tables of a ckan instance
+ *     description: Reset all tables of a csw instance
  *     produces:
  *       - application/json
  *     parameters:
@@ -275,10 +292,86 @@ api.get('/instance/reset/:identifier', (req, res) => {
 /**
  * @swagger
  *
+ * /process/package/{identifier}/{id}:
+ *   get:
+ *     operationId: getProcessPackage
+ *     description: Start the processing of a csw instance's queue
+ *     produces:
+ *       - application/json
+ *     parameters:
+ *       - $ref: '#/components/parameters/identifier'
+ *       - name: id
+ *         description: id of csw package for url request
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: process completed
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
+api.get('/process/package/:identifier', (req, res) => {
+  const trans = startTransaction({
+    name: 'packageShow',
+    ...localTokens(res),
+  });
+  getInstance(client, req.params.identifier)
+    .then(cswInstance => {
+      return nextPackage(client, cswInstance).then(id => {
+        if (id) {
+          res.status(200).json({message: 'Initiated package processing'});
+          return getQueueItem(client, cswInstance.prefix, parseInt(id))
+            .then(queueItem => packageShow(queueItem))
+            .then(cswRecords => {
+              trans(true, {message: 'packageShow complete'});
+              return processPackages(client, cswInstance, cswRecords);
+            })
+            .then(async () => {
+              await removeFromQueue(client, cswInstance, id);
+              trans(true, {
+                message: 'processPackages complete',
+              });
+              // kick off next download
+              fetch(
+                addToken(
+                  `http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`,
+                  res
+                )
+              );
+            })
+            .catch(err => {
+              console.log(err);
+              trans(false, {message: err});
+              setQueueFailed(client, cswInstance, id);
+              // kick off next download
+              fetch(
+                addToken(
+                  `http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`,
+                  res
+                )
+              );
+            });
+        } else {
+          trans(true, {message: 'nothing to process'});
+          res.status(200).json({message: 'Nothing to process'});
+          return Promise.resolve();
+        }
+      });
+    })
+    .catch(err => {
+      handleInstanceError(res, req, err);
+    });
+});
+
+/**
+ * @swagger
+ *
  * /process/instance/{identifier}:
  *   get:
  *     operationId: getProcessInstance
- *     description: Start the processing of a ckan instance
+ *     description: Start the processing of a csw instance
  *     produces:
  *       - application/json
  *     parameters:
@@ -291,37 +384,35 @@ api.get('/instance/reset/:identifier', (req, res) => {
  */
 api.get('/process/instance/:identifier', (req, res) => {
   getInstance(client, req.params.identifier)
-    .then(ckanInstance => {
+    .then(cswInstance => {
       const trans = startTransaction({
         name: 'packageList',
         ...localTokens(res),
       });
-      return packageList(ckanInstance.domain, ckanInstance.version).then(
-        async list => {
-          // store the list in a db table for persistence across fails
-          await insertQueue(client, ckanInstance.prefix, list);
-          simpleResponse(200, 'Queue created', res, trans);
-          // number of parallel calls per process
-          let parallelCount = 3 * processCount;
-          if (ckanInstance.rate_limit !== null && ckanInstance.rate_limit > 0) {
-            parallelCount = ckanInstance.rate_limit;
-          }
-          const fetchs = [];
-          for (let j = 0; j < parallelCount; j += 1) {
-            fetchs.push(
-              fetch(
-                addToken(
-                  `http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`,
-                  res
-                )
-              )
-            );
-          }
-          await Promise.all(fetchs);
-          trans(true, {message: 'Parallel package processing started'});
-          return Promise.resolve();
+      return packageList(cswInstance).then(async list => {
+        // store the list in a db table for persistence across fails
+        await insertQueue(client, cswInstance.prefix, list);
+        simpleResponse(200, 'Queue created', res, trans);
+        // number of parallel calls per process
+        let parallelCount = 3 * processCount;
+        if (cswInstance.rateLimit !== null && cswInstance.rateLimit > 0) {
+          parallelCount = cswInstance.rateLimit;
         }
-      );
+        const fetchs = [];
+        for (let j = 0; j < parallelCount; j += 1) {
+          fetchs.push(
+            fetch(
+              addToken(
+                `http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`,
+                res
+              )
+            )
+          );
+        }
+        await Promise.all(fetchs);
+        trans(true, {message: 'Parallel package processing started'});
+        return Promise.resolve();
+      });
     })
     .catch(err => {
       handleInstanceError(res, req, err);
@@ -334,7 +425,7 @@ api.get('/process/instance/:identifier', (req, res) => {
  * /process/all:
  *   get:
  *     operationId: getProcessAll
- *     description: Start the processing of all ckan instance
+ *     description: Start the processing of all csw instances
  *     produces:
  *       - application/json
  *     parameters:
@@ -345,16 +436,14 @@ api.get('/process/instance/:identifier', (req, res) => {
  *         $ref: '#/components/responses/500'
  */
 api.get('/process/all', (req, res) => {
-  allInstances(client)
-    .then(instanceIds => {
+  getAllInstances(client)
+    .then(instances => {
       return Promise.all(
-        instanceIds.map(identifier => {
-          return getInstance(client, identifier).then(ckanInstance =>
-            fetch(
-              addToken(
-                `http://localhost:${process.env.PORT}/process/instance/${ckanInstance.id}`,
-                res
-              )
+        instances.map(instance => {
+          return fetch(
+            addToken(
+              `http://localhost:${process.env.PORT}/process/instance/${instance.id}`,
+              res
             )
           );
         })
