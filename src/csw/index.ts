@@ -62,13 +62,18 @@ const getRecordsQueryXML = (
   };
 };
 
+// Some of the CSW Endpoints are horribly slow :(
+const timeout = 1200 * 1000; // default 300 * 1000
+
 export const packageList = (
   cswSource: CswSource
 ): Promise<{url: string; options: fetchOptions}[]> => {
   // get number of records in service
   return fetch(
     getRecordsQuery(cswSource, 1, 1),
-    cswSource.type === 'post' ? getRecordsQueryXML(cswSource, 1, 1) : {}
+    cswSource.type === 'post'
+      ? {...getRecordsQueryXML(cswSource, 1, 1), timeout: timeout}
+      : {timeout: timeout}
   )
     .then(result => result.text())
     .then(resultText => {
@@ -97,12 +102,15 @@ export const packageList = (
           ),
           options:
             cswSource.type === 'post'
-              ? getRecordsQueryXML(
-                  cswSource,
-                  c * cswSource.limit + 1,
-                  cswSource.limit
-                )
-              : {},
+              ? {
+                  ...getRecordsQueryXML(
+                    cswSource,
+                    c * cswSource.limit + 1,
+                    cswSource.limit
+                  ),
+                  timeout: timeout,
+                }
+              : {timeout: timeout},
         });
       }
       return calls;

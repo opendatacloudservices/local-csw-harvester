@@ -158,7 +158,9 @@ const getInstance = (client, id) => {
 };
 exports.getInstance = getInstance;
 const getAllInstances = (client) => {
-    return client.query(`SELECT * FROM ${master_table}`).then(result => {
+    return client
+        .query(`SELECT * FROM ${master_table} WHERE active = TRUE`)
+        .then(result => {
         return result.rows.map(r => {
             return {
                 url: r.url,

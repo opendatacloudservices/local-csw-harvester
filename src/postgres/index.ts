@@ -186,23 +186,25 @@ export const getInstance = (client: Client, id: string): Promise<CswSource> => {
 };
 
 export const getAllInstances = (client: Client): Promise<CswSource[]> => {
-  return client.query(`SELECT * FROM ${master_table}`).then(result => {
-    return result.rows.map(r => {
-      return {
-        url: r.url,
-        limit: r.page_limit,
-        version: r.version,
-        id: r.id,
-        type: r.type,
-        prefix: r.prefix,
-        longName: r.long_name,
-        note: r.note,
-        active: r.active,
-        specialParams: r.special_params,
-        rateLimit: r.rate_limit,
-      };
+  return client
+    .query(`SELECT * FROM ${master_table} WHERE active = TRUE`)
+    .then(result => {
+      return result.rows.map(r => {
+        return {
+          url: r.url,
+          limit: r.page_limit,
+          version: r.version,
+          id: r.id,
+          type: r.type,
+          prefix: r.prefix,
+          longName: r.long_name,
+          note: r.note,
+          active: r.active,
+          specialParams: r.special_params,
+          rateLimit: r.rate_limit,
+        };
+      });
     });
-  });
 };
 
 export const resetTables = (client: Client, prefix: string): Promise<void> => {

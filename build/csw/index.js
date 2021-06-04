@@ -34,9 +34,12 @@ const getRecordsQueryXML = (cswSource, start, max) => {
     </csw:GetRecords>`,
     };
 };
+const timeout = 1200 * 1000; // default 300 * 1000
 const packageList = (cswSource) => {
     // get number of records in service
-    return node_fetch_1.default(getRecordsQuery(cswSource, 1, 1), cswSource.type === 'post' ? getRecordsQueryXML(cswSource, 1, 1) : {})
+    return node_fetch_1.default(getRecordsQuery(cswSource, 1, 1), cswSource.type === 'post'
+        ? { ...getRecordsQueryXML(cswSource, 1, 1), timeout: timeout }
+        : { timeout: timeout })
         .then(result => result.text())
         .then(resultText => {
         const json = parser.parse(resultText, { ignoreAttributes: false, arrayMode: true, ignoreNameSpace: true }, false);
@@ -49,8 +52,11 @@ const packageList = (cswSource) => {
             calls.push({
                 url: getRecordsQuery(cswSource, c * cswSource.limit + 1, cswSource.limit),
                 options: cswSource.type === 'post'
-                    ? getRecordsQueryXML(cswSource, c * cswSource.limit + 1, cswSource.limit)
-                    : {},
+                    ? {
+                        ...getRecordsQueryXML(cswSource, c * cswSource.limit + 1, cswSource.limit),
+                        timeout: timeout,
+                    }
+                    : { timeout: timeout },
             });
         }
         return calls;
