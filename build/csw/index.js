@@ -34,6 +34,7 @@ const getRecordsQueryXML = (cswSource, start, max) => {
     </csw:GetRecords>`,
     };
 };
+// Some of the CSW Endpoints are horribly slow :(
 const timeout = 1200 * 1000; // default 300 * 1000
 const packageList = (cswSource) => {
     // get number of records in service

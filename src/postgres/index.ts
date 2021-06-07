@@ -339,7 +339,7 @@ export const processPackages = async (
           [existCheck.rows[0].id]
         );
         if (existDates.rows.length === 0 && r.dates.length === 0) {
-          console.log('SHIT');
+          // no proper way telling if this dataset was updated
           ignore = true;
         } else if (existDates.rows.length > 0 && r.dates.length > 0) {
           let allSame = true;

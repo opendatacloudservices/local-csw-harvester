@@ -267,7 +267,7 @@ const processPackages = async (client, cswSource, cswRecords) => {
                     existCheck.rows[0].date_stamp === dateFormat(r.dateStamp.toString()))) {
                 const existDates = await client.query(`SELECT type, TO_CHAR(date, 'YYYY-MM-DD') AS date FROM ${cswSource.prefix}_dates WHERE record_id = $1`, [existCheck.rows[0].id]);
                 if (existDates.rows.length === 0 && r.dates.length === 0) {
-                    console.log('SHIT');
+                    // no proper way telling if this dataset was updated
                     ignore = true;
                 }
                 else if (existDates.rows.length > 0 && r.dates.length > 0) {
