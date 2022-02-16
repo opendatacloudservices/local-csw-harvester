@@ -75,12 +75,12 @@ obj, path, clearNull = true
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const results = [];
             tObj.forEach(sub => {
-                results.push(exports.traverse(sub, path.slice(1), clearNull));
+                results.push((0, exports.traverse)(sub, path.slice(1), clearNull));
             });
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let returnValue = results.flat();
             if (clearNull) {
-                returnValue = exports.clearNulls(results.flat());
+                returnValue = (0, exports.clearNulls)(results.flat());
             }
             if (!returnValue || returnValue.length === 0) {
                 return null;
@@ -88,7 +88,7 @@ obj, path, clearNull = true
             return returnValue;
         }
         else if (path.length > 1) {
-            return exports.traverse(tObj, path.slice(1), clearNull);
+            return (0, exports.traverse)(tObj, path.slice(1), clearNull);
         }
         else {
             if (Array.isArray(tObj) &&

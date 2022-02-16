@@ -6,12 +6,12 @@ const dotenv = require("dotenv");
 const path = require("path");
 const pg_1 = require("pg");
 const node_fetch_1 = require("node-fetch");
-const pm2 = require("local-pm2-config");
+const pm2 = require("@opendatacloudservices/local-pm2-config");
 const uuid_1 = require("uuid");
 // get environmental variables
 dotenv.config({ path: path.join(__dirname, '../.env') });
-const local_microservice_1 = require("local-microservice");
-const local_logger_1 = require("local-logger");
+const local_microservice_1 = require("@opendatacloudservices/local-microservice");
+const local_logger_1 = require("@opendatacloudservices/local-logger");
 // connect to postgres (via env vars params)
 const client = new pg_1.Client({
     user: process.env.PGUSER,
@@ -24,10 +24,10 @@ const client = new pg_1.Client({
 client
     .connect()
     .then(() => {
-    return index_2.resetQueues(client);
+    return (0, index_2.resetQueues)(client);
 })
     .catch(err => {
-    local_logger_1.logError({ message: err });
+    (0, local_logger_1.logError)({ message: err });
 });
 // number of parallel processes
 let processCount = 1;
@@ -45,8 +45,8 @@ const handleInstanceError = (res, req, err) => {
             res.status(500).json({ error: err.message });
         }
     }
-    local_logger_1.logError({
-        ...local_logger_1.localTokens(res),
+    (0, local_logger_1.logError)({
+        ...(0, local_logger_1.localTokens)(res),
         message: err,
         params: [JSON.stringify(req.params)],
     });
@@ -84,13 +84,13 @@ const handleInstanceError = (res, req, err) => {
  *         description: Init completed
  */
 local_microservice_1.api.get('/master/init', (req, res) => {
-    index_2.initMasterTable(client)
+    (0, index_2.initMasterTable)(client)
         .then(() => {
         res.status(200).json({ message: 'Init completed' });
     })
         .catch(err => {
         res.status(500).json({ error: err.message });
-        local_logger_1.logError(err);
+        (0, local_logger_1.logError)(err);
     });
 });
 /**
@@ -187,14 +187,14 @@ local_microservice_1.api.get('/instance/init', (req, res) => {
     });
     if (!allParams) {
         const err = Error('Missing parameter: prefix: string, domain: string and version: number are required parameters!');
-        local_logger_1.logError({
-            ...local_logger_1.localTokens(res),
+        (0, local_logger_1.logError)({
+            ...(0, local_logger_1.localTokens)(res),
             err,
         });
         res.status(500).json({ error: err.message });
     }
     else {
-        index_2.createInstance(client, {
+        (0, index_2.createInstance)(client, {
             url: req.query.url === undefined ? '' : req.query.url.toString(),
             limit: req.query.limit === undefined
                 ? 10
@@ -205,7 +205,7 @@ local_microservice_1.api.get('/instance/init', (req, res) => {
             type: req.query.type !== 'get' && req.query.type !== 'post'
                 ? 'get'
                 : req.query.type,
-            prefix: req.query.prefix === undefined ? uuid_1.v4() : req.query.prefix.toString(),
+            prefix: req.query.prefix === undefined ? (0, uuid_1.v4)() : req.query.prefix.toString(),
             longName: req.query.longName === undefined ? '' : req.query.longName.toString(),
             note: req.query.note === undefined ? '' : req.query.note.toString(),
             active: req.query.active === 'true' || req.query.active === undefined
@@ -244,9 +244,9 @@ local_microservice_1.api.get('/instance/init', (req, res) => {
  *         description: Reset completed
  */
 local_microservice_1.api.get('/instance/reset/:identifier', (req, res) => {
-    index_2.getInstance(client, req.params.identifier)
+    (0, index_2.getInstance)(client, req.params.identifier)
         .then(ckanInstance => {
-        return index_2.resetTables(client, ckanInstance.prefix);
+        return (0, index_2.resetTables)(client, ckanInstance.prefix);
     })
         .then(() => {
         res.status(200).json({ message: 'Reset completed' });
@@ -279,35 +279,35 @@ local_microservice_1.api.get('/instance/reset/:identifier', (req, res) => {
  *         $ref: '#/components/responses/500'
  */
 local_microservice_1.api.get('/process/package/:identifier', (req, res) => {
-    const trans = local_logger_1.startTransaction({
+    const trans = (0, local_logger_1.startTransaction)({
         name: 'packageShow',
-        ...local_logger_1.localTokens(res),
+        ...(0, local_logger_1.localTokens)(res),
     });
-    index_2.getInstance(client, req.params.identifier)
+    (0, index_2.getInstance)(client, req.params.identifier)
         .then(cswInstance => {
-        return index_2.nextPackage(client, cswInstance).then(id => {
+        return (0, index_2.nextPackage)(client, cswInstance).then(id => {
             if (id) {
                 res.status(200).json({ message: 'Initiated package processing' });
-                return index_2.getQueueItem(client, cswInstance.prefix, parseInt(id))
-                    .then(queueItem => index_1.packageShow(queueItem))
+                return (0, index_2.getQueueItem)(client, cswInstance.prefix, parseInt(id))
+                    .then(queueItem => (0, index_1.packageShow)(queueItem))
                     .then(cswRecords => {
                     trans(true, { message: 'packageShow complete' });
-                    return index_2.processPackages(client, cswInstance, cswRecords);
+                    return (0, index_2.processPackages)(client, cswInstance, cswRecords);
                 })
                     .then(async () => {
-                    await index_2.removeFromQueue(client, cswInstance, id);
+                    await (0, index_2.removeFromQueue)(client, cswInstance, id);
                     trans(true, {
                         message: 'processPackages complete',
                     });
                     // kick off next download
-                    node_fetch_1.default(local_logger_1.addToken(`http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`, res));
+                    (0, node_fetch_1.default)((0, local_logger_1.addToken)(`http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`, res));
                 })
                     .catch(err => {
                     console.log(err);
                     trans(false, { message: err });
-                    index_2.setQueueFailed(client, cswInstance, id);
+                    (0, index_2.setQueueFailed)(client, cswInstance, id);
                     // kick off next download
-                    node_fetch_1.default(local_logger_1.addToken(`http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`, res));
+                    (0, node_fetch_1.default)((0, local_logger_1.addToken)(`http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`, res));
                 });
             }
             else {
@@ -339,16 +339,16 @@ local_microservice_1.api.get('/process/package/:identifier', (req, res) => {
  *         $ref: '#/components/responses/500'
  */
 local_microservice_1.api.get('/process/instance/:identifier', (req, res) => {
-    index_2.getInstance(client, req.params.identifier)
+    (0, index_2.getInstance)(client, req.params.identifier)
         .then(cswInstance => {
-        const trans = local_logger_1.startTransaction({
+        const trans = (0, local_logger_1.startTransaction)({
             name: 'packageList',
-            ...local_logger_1.localTokens(res),
+            ...(0, local_logger_1.localTokens)(res),
         });
-        return index_1.packageList(cswInstance).then(async (list) => {
+        return (0, index_1.packageList)(cswInstance).then(async (list) => {
             // store the list in a db table for persistence across fails
-            await index_2.insertQueue(client, cswInstance.prefix, list);
-            local_microservice_1.simpleResponse(200, 'Queue created', res, trans);
+            await (0, index_2.insertQueue)(client, cswInstance.prefix, list);
+            (0, local_microservice_1.simpleResponse)(200, 'Queue created', res, trans);
             // number of parallel calls per process
             let parallelCount = 3 * processCount;
             if (cswInstance.rateLimit !== null && cswInstance.rateLimit > 0) {
@@ -356,7 +356,7 @@ local_microservice_1.api.get('/process/instance/:identifier', (req, res) => {
             }
             const fetchs = [];
             for (let j = 0; j < parallelCount; j += 1) {
-                fetchs.push(node_fetch_1.default(local_logger_1.addToken(`http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`, res)));
+                fetchs.push((0, node_fetch_1.default)((0, local_logger_1.addToken)(`http://localhost:${process.env.PORT}/process/package/${req.params.identifier}`, res)));
             }
             await Promise.all(fetchs);
             trans(true, { message: 'Parallel package processing started' });
@@ -384,10 +384,10 @@ local_microservice_1.api.get('/process/instance/:identifier', (req, res) => {
  *         $ref: '#/components/responses/500'
  */
 local_microservice_1.api.get('/process/all', (req, res) => {
-    index_2.getAllInstances(client)
+    (0, index_2.getAllInstances)(client)
         .then(instances => {
         return Promise.all(instances.map(instance => {
-            return node_fetch_1.default(local_logger_1.addToken(`http://localhost:${process.env.PORT}/process/instance/${instance.id}`, res));
+            return (0, node_fetch_1.default)((0, local_logger_1.addToken)(`http://localhost:${process.env.PORT}/process/instance/${instance.id}`, res));
         }));
     })
         .then(() => {
@@ -397,5 +397,5 @@ local_microservice_1.api.get('/process/all', (req, res) => {
         handleInstanceError(res, req, err);
     });
 });
-local_microservice_1.catchAll();
+(0, local_microservice_1.catchAll)();
 //# sourceMappingURL=index.js.map

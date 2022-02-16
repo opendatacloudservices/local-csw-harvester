@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import * as parser from 'fast-xml-parser';
+import {XMLParser} from 'fast-xml-parser';
 import {traverse, onlySimple, getFirst} from './get';
 import {
   CswContact,
@@ -77,11 +77,11 @@ export const packageList = (
   )
     .then(result => result.text())
     .then(resultText => {
-      const json = parser.parse(
-        resultText,
-        {ignoreAttributes: false, arrayMode: true, ignoreNameSpace: true},
-        false
-      );
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        removeNSPrefix: true,
+      });
+      const json = parser.parse(resultText, false);
 
       if ('ExceptionReport' in json) {
         throw new Error(JSON.stringify(json));
@@ -123,17 +123,13 @@ export const packageShow = (queueItem: {
 }): Promise<CswRecord[]> => {
   return fetch(queueItem.url, queueItem.options)
     .then(result => result.text())
-    .then(resultText =>
-      parser.parse(
-        resultText,
-        {
-          ignoreAttributes: false,
-          arrayMode: true,
-          ignoreNameSpace: true,
-        },
-        false
-      )
-    )
+    .then(resultText => {
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        removeNSPrefix: true,
+      });
+      return parser.parse(resultText, false);
+    })
     .then(results => {
       if ('ExceptionReport' in results) {
         throw new Error(JSON.stringify(results));

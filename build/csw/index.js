@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.packageShow = exports.packageList = void 0;
 const node_fetch_1 = require("node-fetch");
-const parser = require("fast-xml-parser");
+const fast_xml_parser_1 = require("fast-xml-parser");
 const get_1 = require("./get");
 const getRecordsQuery = (cswSource, start, max) => {
     return `${cswSource.url}?REQUEST=GetRecords&SERVICE=CSW&VERSION=${cswSource.version}&RESULTTYPE=results&MAXRECORDS=${max}&typeNames=csw:Record&elementSetName=full&startPosition=${start}&outputSchema=http://www.isotc211.org/2005/gmd${cswSource.specialParams && cswSource.specialParams.length > 0
@@ -38,12 +38,16 @@ const getRecordsQueryXML = (cswSource, start, max) => {
 const timeout = 1200 * 1000; // default 300 * 1000
 const packageList = (cswSource) => {
     // get number of records in service
-    return node_fetch_1.default(getRecordsQuery(cswSource, 1, 1), cswSource.type === 'post'
+    return (0, node_fetch_1.default)(getRecordsQuery(cswSource, 1, 1), cswSource.type === 'post'
         ? { ...getRecordsQueryXML(cswSource, 1, 1), timeout: timeout }
         : { timeout: timeout })
         .then(result => result.text())
         .then(resultText => {
-        const json = parser.parse(resultText, { ignoreAttributes: false, arrayMode: true, ignoreNameSpace: true }, false);
+        const parser = new fast_xml_parser_1.XMLParser({
+            ignoreAttributes: false,
+            removeNSPrefix: true,
+        });
+        const json = parser.parse(resultText, false);
         if ('ExceptionReport' in json) {
             throw new Error(JSON.stringify(json));
         }
@@ -65,13 +69,15 @@ const packageList = (cswSource) => {
 };
 exports.packageList = packageList;
 const packageShow = (queueItem) => {
-    return node_fetch_1.default(queueItem.url, queueItem.options)
+    return (0, node_fetch_1.default)(queueItem.url, queueItem.options)
         .then(result => result.text())
-        .then(resultText => parser.parse(resultText, {
-        ignoreAttributes: false,
-        arrayMode: true,
-        ignoreNameSpace: true,
-    }, false))
+        .then(resultText => {
+        const parser = new fast_xml_parser_1.XMLParser({
+            ignoreAttributes: false,
+            removeNSPrefix: true,
+        });
+        return parser.parse(resultText, false);
+    })
         .then(results => {
         if ('ExceptionReport' in results) {
             throw new Error(JSON.stringify(results));
@@ -81,7 +87,7 @@ const packageShow = (queueItem) => {
         for (let s = 0; s < searchResults.length; s += 1) {
             const record = searchResults[s];
             let resources = [];
-            const searchResource = get_1.traverse(record, [
+            const searchResource = (0, get_1.traverse)(record, [
                 'distributionInfo',
                 'MD_Distribution',
                 'transferOptions',
@@ -93,7 +99,7 @@ const packageShow = (queueItem) => {
                 })
                     .map(resource => {
                     return {
-                        distributionFormat: get_1.onlySimple(get_1.traverse(record, [
+                        distributionFormat: (0, get_1.onlySimple)((0, get_1.traverse)(record, [
                             'distributionInfo',
                             'MD_Distribution',
                             'distributionFormat',
@@ -101,7 +107,7 @@ const packageShow = (queueItem) => {
                             'name',
                             'CharacterString',
                         ])) ||
-                            get_1.onlySimple(get_1.traverse(record, [
+                            (0, get_1.onlySimple)((0, get_1.traverse)(record, [
                                 'distributionInfo',
                                 'MD_Distribution',
                                 'distributor',
@@ -111,35 +117,35 @@ const packageShow = (queueItem) => {
                                 'name',
                                 'CharacterString',
                             ])),
-                        url: get_1.onlySimple(get_1.traverse(resource, [
+                        url: (0, get_1.onlySimple)((0, get_1.traverse)(resource, [
                             'MD_DigitalTransferOptions',
                             'onLine',
                             'CI_OnlineResource',
                             'linkage',
                             'URL',
                         ], false)),
-                        applicationProfile: get_1.onlySimple(get_1.traverse(resource, [
+                        applicationProfile: (0, get_1.onlySimple)((0, get_1.traverse)(resource, [
                             'MD_DigitalTransferOptions',
                             'onLine',
                             'CI_OnlineResource',
                             'applicationProfile',
                             'CharacterString',
                         ], false)),
-                        name: get_1.onlySimple(get_1.traverse(resource, [
+                        name: (0, get_1.onlySimple)((0, get_1.traverse)(resource, [
                             'MD_DigitalTransferOptions',
                             'onLine',
                             'CI_OnlineResource',
                             'name',
                             'CharacterString',
                         ], false)),
-                        description: get_1.onlySimple(get_1.traverse(resource, [
+                        description: (0, get_1.onlySimple)((0, get_1.traverse)(resource, [
                             'MD_DigitalTransferOptions',
                             'onLine',
                             'CI_OnlineResource',
                             'description',
                             'CharacterString',
                         ], false)),
-                        function: get_1.onlySimple(get_1.traverse(resource, [
+                        function: (0, get_1.onlySimple)((0, get_1.traverse)(resource, [
                             'MD_DigitalTransferOptions',
                             'onLine',
                             'CI_OnlineResource',
@@ -147,7 +153,7 @@ const packageShow = (queueItem) => {
                             'CI_OnLineFunctionCode',
                             ['#text', '@_codeListValue'],
                         ], false)),
-                        protocol: get_1.onlySimple(get_1.traverse(resource, [
+                        protocol: (0, get_1.onlySimple)((0, get_1.traverse)(resource, [
                             'MD_DigitalTransferOptions',
                             'onLine',
                             'CI_OnlineResource',
@@ -158,7 +164,7 @@ const packageShow = (queueItem) => {
                 });
             }
             let dates = [];
-            const searchDates = get_1.traverse(record, [
+            const searchDates = (0, get_1.traverse)(record, [
                 'identificationInfo',
                 ['MD_DataIdentification', 'SV_ServiceIdentification'],
                 'citation',
@@ -172,8 +178,8 @@ const packageShow = (queueItem) => {
                     }
                     else {
                         return {
-                            date: get_1.getFirst(get_1.traverse(date, ['CI_Date', 'date', ['DateTime', 'Date']])),
-                            type: get_1.getFirst(get_1.traverse(date, [
+                            date: (0, get_1.getFirst)((0, get_1.traverse)(date, ['CI_Date', 'date', ['DateTime', 'Date']])),
+                            type: (0, get_1.getFirst)((0, get_1.traverse)(date, [
                                 'CI_Date',
                                 'dateType',
                                 ['CI_DateTypeCode', 'CI_DateTypeCode'],
@@ -184,7 +190,7 @@ const packageShow = (queueItem) => {
                 });
             }
             let constraints = [];
-            const searchConstraints = get_1.traverse(record, [
+            const searchConstraints = (0, get_1.traverse)(record, [
                 'identificationInfo',
                 ['MD_DataIdentification', 'SV_ServiceIdentification'],
                 'resourceConstraints',
@@ -196,30 +202,30 @@ const packageShow = (queueItem) => {
                 })
                     .map(constraint => {
                     const returnConstraints = [];
-                    const useLimitation = get_1.traverse(constraint, [
+                    const useLimitation = (0, get_1.traverse)(constraint, [
                         ['MD_LegalConstraints', 'MD_Constraints'],
                         'useLimitation',
                         'CharacterString',
                     ]);
-                    const useConstraint = get_1.traverse(constraint, [
+                    const useConstraint = (0, get_1.traverse)(constraint, [
                         ['MD_LegalConstraints', 'MD_Constraints'],
                         'useConstraints',
                         'MD_RestrictionCode',
                         '@_codeListValue',
                     ]);
-                    let otherConstraint = get_1.traverse(constraint, [
+                    let otherConstraint = (0, get_1.traverse)(constraint, [
                         ['MD_LegalConstraints', 'MD_Constraints'],
                         'otherConstraints',
                         'gmx:Anchor',
                     ]);
                     if (!otherConstraint || otherConstraint.length === 0) {
-                        otherConstraint = get_1.traverse(constraint, [
+                        otherConstraint = (0, get_1.traverse)(constraint, [
                             ['MD_LegalConstraints', 'MD_Constraints'],
                             'otherConstraints',
                             'CharacterString',
                         ]);
                     }
-                    const accessConstraint = get_1.traverse(constraint, [
+                    const accessConstraint = (0, get_1.traverse)(constraint, [
                         ['MD_LegalConstraints', 'MD_Constraints'],
                         'accessConstraints',
                         'gmx:MD_RestrictionCode',
@@ -254,7 +260,7 @@ const packageShow = (queueItem) => {
                     .flat();
             }
             let keywords = [];
-            const searchKeywords = get_1.traverse(record, [
+            const searchKeywords = (0, get_1.traverse)(record, [
                 'identificationInfo',
                 ['MD_DataIdentification', 'SV_ServiceIdentification'],
                 'descriptiveKeywords',
@@ -266,19 +272,19 @@ const packageShow = (queueItem) => {
                 })
                     .map(keyword => {
                     return {
-                        name: get_1.traverse(keyword, ['MD_Keywords', 'keyword', 'CharacterString'], false),
-                        type: get_1.traverse(keyword, [
+                        name: (0, get_1.traverse)(keyword, ['MD_Keywords', 'keyword', 'CharacterString'], false),
+                        type: (0, get_1.traverse)(keyword, [
                             'MD_Keywords',
                             'type',
                             'MD_KeywordTypeCode',
                             '@_codeListValue',
                         ]),
-                        anchor: get_1.traverse(keyword, ['MD_Keywords', 'keyword', 'gmx:Anchor'], false),
+                        anchor: (0, get_1.traverse)(keyword, ['MD_Keywords', 'keyword', 'gmx:Anchor'], false),
                     };
                 });
             }
             let organisations = [];
-            const searchOrganisations = get_1.traverse(record, [
+            const searchOrganisations = (0, get_1.traverse)(record, [
                 'identificationInfo',
                 ['MD_DataIdentification', 'SV_ServiceIdentification'],
                 'pointOfContact',
@@ -290,28 +296,28 @@ const packageShow = (queueItem) => {
                 })
                     .map(organisation => {
                     return {
-                        type: get_1.traverse(organisation, [
+                        type: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'role',
                             'CI_RoleCode',
                             '@_codeListValue',
                         ]),
-                        name: get_1.traverse(organisation, [
+                        name: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'organisationName',
                             'CharacterString',
                         ]),
-                        individualName: get_1.traverse(organisation, [
+                        individualName: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'individualName',
                             'CharacterString',
                         ]),
-                        position: get_1.traverse(organisation, [
+                        position: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'positionName',
                             'CharacterString',
                         ]),
-                        phone: get_1.traverse(organisation, [
+                        phone: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -320,7 +326,7 @@ const packageShow = (queueItem) => {
                             'voice',
                             'CharacterString',
                         ]),
-                        fax: get_1.traverse(organisation, [
+                        fax: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -329,7 +335,7 @@ const packageShow = (queueItem) => {
                             'facsimile',
                             'CharacterString',
                         ]),
-                        url: get_1.traverse(organisation, [
+                        url: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -338,7 +344,7 @@ const packageShow = (queueItem) => {
                             'linkage',
                             'URL',
                         ]),
-                        email: get_1.traverse(organisation, [
+                        email: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -347,7 +353,7 @@ const packageShow = (queueItem) => {
                             'electronicMailAddress',
                             'CharacterString',
                         ]),
-                        deliveryPoint: get_1.traverse(organisation, [
+                        deliveryPoint: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -356,7 +362,7 @@ const packageShow = (queueItem) => {
                             'deliveryPoint',
                             'CharacterString',
                         ]),
-                        city: get_1.traverse(organisation, [
+                        city: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -365,7 +371,7 @@ const packageShow = (queueItem) => {
                             'city',
                             'CharacterString',
                         ]),
-                        adminArea: get_1.traverse(organisation, [
+                        adminArea: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -374,7 +380,7 @@ const packageShow = (queueItem) => {
                             'administrativeArea',
                             'CharacterString',
                         ]),
-                        postcode: get_1.traverse(organisation, [
+                        postcode: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -383,7 +389,7 @@ const packageShow = (queueItem) => {
                             'postalCode',
                             'CharacterString',
                         ]),
-                        country: get_1.traverse(organisation, [
+                        country: (0, get_1.traverse)(organisation, [
                             'CI_ResponsibleParty',
                             'contactInfo',
                             'CI_Contact',
@@ -396,25 +402,25 @@ const packageShow = (queueItem) => {
                 });
             }
             cswRecords.push({
-                id: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, ['fileIdentifier', 'CharacterString']))),
-                languageCode: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, [
+                id: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, ['fileIdentifier', 'CharacterString']))),
+                languageCode: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, [
                     'language',
                     ['#text', '@_codeListValue', 'CharacterString'],
                 ]))) ||
-                    get_1.getFirst(get_1.onlySimple(get_1.traverse(record, [
+                    (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, [
                         'language',
                         'LanguageCode',
                         ['#text', '@_codeListValue'],
                     ]))),
-                parentIdentifier: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, ['parentIdentifier', 'CharacterString']))),
-                hierarchyLevel: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, [
+                parentIdentifier: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, ['parentIdentifier', 'CharacterString']))),
+                hierarchyLevel: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, [
                     'hierarchyLevel',
                     'MD_ScopeCode',
                     ['#text', '@_codeListValue'],
                 ]))),
-                hierarchyLevelName: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, ['hierarchyLevelName', 'CharacterString']))),
-                dateStamp: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, ['dateStamp', ['Date', 'DateTime']]))),
-                edition: get_1.traverse(record, [
+                hierarchyLevelName: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, ['hierarchyLevelName', 'CharacterString']))),
+                dateStamp: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, ['dateStamp', ['Date', 'DateTime']]))),
+                edition: (0, get_1.traverse)(record, [
                     'identificationInfo',
                     ['MD_DataIdentification', 'SV_ServiceIdentification'],
                     'citation',
@@ -422,14 +428,14 @@ const packageShow = (queueItem) => {
                     'edition',
                     'CharacterString',
                 ]),
-                abstract: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, [
+                abstract: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, [
                     'identificationInfo',
                     ['MD_DataIdentification', 'SV_ServiceIdentification'],
                     'abstract',
                     'CharacterString',
                 ]))),
                 resources,
-                srid: get_1.traverse(record, [
+                srid: (0, get_1.traverse)(record, [
                     'referenceSystemInfo',
                     'MD_ReferenceSystem',
                     'referenceSystemIdentifier',
@@ -437,13 +443,13 @@ const packageShow = (queueItem) => {
                     'code',
                     ['gmx:Anchor', 'CharacterString'],
                 ]),
-                purpose: get_1.traverse(record, [
+                purpose: (0, get_1.traverse)(record, [
                     'identificationInfo',
                     ['MD_DataIdentification', 'SV_ServiceIdentification'],
                     'purpose',
                     'CharacterString',
                 ]),
-                title: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, [
+                title: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, [
                     'identificationInfo',
                     ['MD_DataIdentification', 'SV_ServiceIdentification'],
                     'citation',
@@ -451,7 +457,7 @@ const packageShow = (queueItem) => {
                     'title',
                     'CharacterString',
                 ]))),
-                alternateTitle: get_1.getFirst(get_1.onlySimple(get_1.traverse(record, [
+                alternateTitle: (0, get_1.getFirst)((0, get_1.onlySimple)((0, get_1.traverse)(record, [
                     'identificationInfo',
                     ['MD_DataIdentification', 'SV_ServiceIdentification'],
                     'citation',
@@ -461,13 +467,13 @@ const packageShow = (queueItem) => {
                 ]))),
                 organisations,
                 dates,
-                category: get_1.traverse(record, [
+                category: (0, get_1.traverse)(record, [
                     'identificationInfo',
                     ['MD_DataIdentification', 'SV_ServiceIdentification'],
                     'topicCategory',
                     'MD_TopicCategoryCode',
                 ]),
-                spatialResolution: get_1.traverse(record, [
+                spatialResolution: (0, get_1.traverse)(record, [
                     'identificationInfo',
                     ['MD_DataIdentification', 'SV_ServiceIdentification'],
                     'spatialResolution',
@@ -477,7 +483,7 @@ const packageShow = (queueItem) => {
                     'denominator',
                     'Integer',
                 ]),
-                geographicDescription: get_1.traverse(record, [
+                geographicDescription: (0, get_1.traverse)(record, [
                     'identificationInfo',
                     ['MD_DataIdentification', 'SV_ServiceIdentification'],
                     'extent',
@@ -490,7 +496,7 @@ const packageShow = (queueItem) => {
                     'CharacterString',
                 ]),
                 temporalExtent: {
-                    start: get_1.onlySimple(get_1.traverse(record, [
+                    start: (0, get_1.onlySimple)((0, get_1.traverse)(record, [
                         'identificationInfo',
                         ['MD_DataIdentification', 'SV_ServiceIdentification'],
                         'extent',
@@ -501,7 +507,7 @@ const packageShow = (queueItem) => {
                         'gml:TimePeriod',
                         'gml:beginPosition',
                     ])),
-                    end: get_1.onlySimple(get_1.traverse(record, [
+                    end: (0, get_1.onlySimple)((0, get_1.traverse)(record, [
                         'identificationInfo',
                         ['MD_DataIdentification', 'SV_ServiceIdentification'],
                         'extent',
@@ -512,7 +518,7 @@ const packageShow = (queueItem) => {
                         'gml:TimePeriod',
                         'gml:endPosition',
                     ])),
-                    startUndetermined: get_1.onlySimple(get_1.traverse(record, [
+                    startUndetermined: (0, get_1.onlySimple)((0, get_1.traverse)(record, [
                         'identificationInfo',
                         ['MD_DataIdentification', 'SV_ServiceIdentification'],
                         'extent',
@@ -524,7 +530,7 @@ const packageShow = (queueItem) => {
                         'gml:beginPosition',
                         '@_indeterminatePosition',
                     ])),
-                    endUndetermined: get_1.onlySimple(get_1.traverse(record, [
+                    endUndetermined: (0, get_1.onlySimple)((0, get_1.traverse)(record, [
                         'identificationInfo',
                         ['MD_DataIdentification', 'SV_ServiceIdentification'],
                         'extent',
@@ -538,7 +544,7 @@ const packageShow = (queueItem) => {
                     ])),
                 },
                 spatialExtent: {
-                    description: get_1.traverse(record, [
+                    description: (0, get_1.traverse)(record, [
                         'identificationInfo',
                         ['MD_DataIdentification', 'SV_ServiceIdentification'],
                         'extent',
@@ -547,7 +553,7 @@ const packageShow = (queueItem) => {
                         'CharacterString',
                     ]),
                     longitude: [
-                        get_1.getFirst(get_1.traverse(record, [
+                        (0, get_1.getFirst)((0, get_1.traverse)(record, [
                             'identificationInfo',
                             ['MD_DataIdentification', 'SV_ServiceIdentification'],
                             'extent',
@@ -557,7 +563,7 @@ const packageShow = (queueItem) => {
                             'westBoundLongitude',
                             'Decimal',
                         ])),
-                        get_1.getFirst(get_1.traverse(record, [
+                        (0, get_1.getFirst)((0, get_1.traverse)(record, [
                             'identificationInfo',
                             ['MD_DataIdentification', 'SV_ServiceIdentification'],
                             'extent',
@@ -569,7 +575,7 @@ const packageShow = (queueItem) => {
                         ])),
                     ],
                     latitude: [
-                        get_1.getFirst(get_1.traverse(record, [
+                        (0, get_1.getFirst)((0, get_1.traverse)(record, [
                             'identificationInfo',
                             ['MD_DataIdentification', 'SV_ServiceIdentification'],
                             'extent',
@@ -579,7 +585,7 @@ const packageShow = (queueItem) => {
                             'southBoundLatitude',
                             'Decimal',
                         ])),
-                        get_1.getFirst(get_1.traverse(record, [
+                        (0, get_1.getFirst)((0, get_1.traverse)(record, [
                             'identificationInfo',
                             ['MD_DataIdentification', 'SV_ServiceIdentification'],
                             'extent',
